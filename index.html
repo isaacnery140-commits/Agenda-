@@ -58,6 +58,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .banner{padding:10px 14px;border-radius:10px;background:var(--accent-soft);font-size:14px}
 .banner.warn{background:color-mix(in srgb, var(--p1) 18%, var(--surface))}
 .hidden{display:none !important}
+.lock{font-size:11px;color:var(--muted)}
 
 .grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:820px){.grid{grid-template-columns:1fr}}
@@ -155,6 +156,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   </header>
 
   <div class="banner hidden" id="banner"></div>
+  <div class="banner hidden" id="notif" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span id="notifText"></span><button class="btn primary hidden" id="notifBtn" type="button">Ativar notificações</button></div>
 
   <div class="grid">
     <section class="card" aria-label="Calendário">
@@ -199,6 +201,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     </div>
     <div class="field"><label for="f-place">Local</label><input id="f-place" maxlength="120" placeholder="Opcional"></div>
     <div class="field"><label for="f-notes">Observações</label><textarea id="f-notes" maxlength="1000" placeholder="Opcional"></textarea></div>
+    <label class="check" id="allowRow" for="f-allow"><input id="f-allow" type="checkbox"> Permitir que a outra pessoa edite</label>
     <div class="byline" id="byline"></div>
     <div class="err" id="formErr" role="alert"></div>
     <div class="actions">
@@ -250,7 +253,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     }
     return data;
   }
-  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
+  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
 
   async function refresh(){
     try{
@@ -287,7 +290,10 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     return Object.keys(first).sort((a,b)=>first[a]-first[b]);
   }
   const colorOf = id => { const i=creators().indexOf(id); return "var("+PCOL[(i<0?0:i)%PCOL.length]+")"; };
-  const nameOf = id => !id ? "Alguém" : (id===S.me ? id+" (você)" : id);
+  const same = (a,b) => String(a||"").trim().toLowerCase()===String(b||"").trim().toLowerCase();
+  const isMine = ev => !ev.by || same(ev.by,S.me);
+  const canEdit = ev => isMine(ev) || ev.allowEdit;
+  const nameOf = id => !id ? "Alguém" : (same(id,S.me) ? id+" (você)" : id);
 
   // ---------- render ----------
   function byTime(a,b){
@@ -299,7 +305,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 
   function renderPeople(){
     const box=$("people"); box.replaceChildren();
-    for(const id of creators()) box.append(el("span",{class:"chip"}, el("span",{class:"dot",style:"background:"+colorOf(id)}), id===S.me?"Você":id));
+    for(const id of creators()) box.append(el("span",{class:"chip"}, el("span",{class:"dot",style:"background:"+colorOf(id)}), same(id,S.me)?"Você":id));
   }
   function renderMonth(){
     const v=S.view;
@@ -325,7 +331,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(showDate){ t.append(parse(e.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}).replace(".","")); t.append(el("small",null,e.allDay?"Dia todo":(e.start||""))); }
     else if(e.allDay) t.append("Dia todo");
     else t.append(e.start||"", el("small",null,e.end?"até "+e.end:""));
-    const meta=[e.by===S.me?"Você":(e.by||"Alguém")]; if(e.place) meta.unshift(e.place);
+    const meta=[same(e.by,S.me)?"Você":(e.by||"Alguém")]; if(e.place) meta.unshift(e.place); if(!canEdit(e)) meta.push("só leitura");
     return el("button",{class:"ev",type:"button",style:"--c:"+colorOf(e.by),onclick:()=>openForm(e)},
       t, el("div",null, el("div",{class:"title"},e.title), el("div",{class:"meta"},meta.join(" · "))));
   }
@@ -348,7 +354,8 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   // ---------- formulário ----------
   function openForm(ev, date){
     S.editing=ev||null;
-    $("formTitle").textContent=ev?"Editar compromisso":"Novo compromisso";
+    const editable=!ev||canEdit(ev), mine=!ev||isMine(ev);
+    $("formTitle").textContent=!ev?"Novo compromisso":(editable?"Editar compromisso":"Compromisso");
     $("f-title").value=ev?ev.title:"";
     $("f-date").value=ev?ev.date:(date||S.sel);
     $("f-allday").checked=ev?ev.allDay:false;
@@ -356,9 +363,14 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     $("f-end").value=ev&&ev.end?ev.end:"10:00";
     $("f-place").value=ev?ev.place:"";
     $("f-notes").value=ev?ev.notes:"";
-    $("byline").textContent=ev?("Criado por "+nameOf(ev.by)+(ev.editedBy&&ev.editedBy!==ev.by?" · editado por "+nameOf(ev.editedBy):"")):"";
+    $("f-allow").checked=ev?ev.allowEdit:false;
+    $("allowRow").classList.toggle("hidden",!mine);
+    $("byline").textContent=ev?("Criado por "+nameOf(ev.by)+(ev.editedBy&&!same(ev.editedBy,ev.by)?" · editado por "+nameOf(ev.editedBy):"")+(editable?"":" · Só "+ev.by+" pode editar este compromisso.")):"";
+    ["f-title","f-date","f-allday","f-start","f-end","f-place","f-notes"].forEach(id=>$(id).disabled=!editable);
+    $("saveBtn").classList.toggle("hidden",!editable);
+    $("cancelBtn").textContent=editable?"Cancelar":"Fechar";
     $("formErr").textContent="";
-    $("delBtn").classList.toggle("hidden",!ev);
+    $("delBtn").classList.toggle("hidden",!ev||!editable);
     $("delBtn").textContent="Excluir"; $("delBtn").dataset.confirm="";
     syncAllDay();
     $("overlay").classList.remove("hidden");
@@ -366,7 +378,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   }
   function closeForm(){ $("overlay").classList.add("hidden"); S.editing=null; }
   function syncAllDay(){ $("timeRow").classList.toggle("hidden",$("f-allday").checked); }
-  const saveErr = e => e.badCode ? "O código da agenda mudou. Saia e entre de novo." : "Não foi possível salvar. Verifique a internet e tente de novo.";
+  const saveErr = e => /sem_permissao/.test(e.message||"") ? "Só quem criou este compromisso pode alterá-lo." : e.badCode ? "O código da agenda mudou. Saia e entre de novo." : "Não foi possível salvar. Verifique a internet e tente de novo.";
 
   $("form").addEventListener("submit", async ev=>{
     ev.preventDefault();
@@ -379,7 +391,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       const row = await rpc("agenda_save",{
         p_id: S.editing?S.editing.id:null, p_title:title, p_date:date, p_all_day:allDay,
         p_start: allDay?null:(start||null), p_end: allDay?null:(end||null),
-        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me
+        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me, p_allow_edit:$("f-allow").checked
       });
       if(row && row.id) S.events.set(row.id,toLocal(row));
       S.sel=date; const d=parse(date); S.view=new Date(d.getFullYear(),d.getMonth(),1);
@@ -392,7 +404,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!b.dataset.confirm){ b.dataset.confirm="1"; b.textContent="Confirmar exclusão"; return; }
     const old=S.editing; if(!old) return;
     b.disabled=true;
-    try{ await rpc("agenda_delete",{p_id:old.id}); S.events.delete(old.id); closeForm(); render(); }
+    try{ await rpc("agenda_delete",{p_id:old.id,p_author:S.me}); S.events.delete(old.id); closeForm(); render(); }
     catch(e){ $("formErr").textContent=saveErr(e); }
     finally{ b.disabled=false; }
   });
@@ -408,6 +420,42 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   $("next").addEventListener("click",()=>{ S.view=new Date(S.view.getFullYear(),S.view.getMonth()+1,1); renderMonth(); });
   $("todayBtn").addEventListener("click",()=>{ const t=new Date(); S.view=new Date(t.getFullYear(),t.getMonth(),1); S.sel=ymd(t); render(); });
 
+  // ---------- notificações ----------
+  const pushOK = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = !!navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches);
+  function b64ToBytes(b){ const p="=".repeat((4-b.length%4)%4), r=atob((b+p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(r,c=>c.charCodeAt(0)); }
+  function notifUI(text, showBtn){
+    const box=$("notif");
+    if(!text){ box.classList.add("hidden"); return; }
+    $("notifText").textContent=text; $("notifBtn").classList.toggle("hidden",!showBtn); box.classList.remove("hidden");
+  }
+  function updateNotif(){
+    if(!pushOK){
+      notifUI(isIOS && !standalone ? "Para receber notificações no iPhone, adicione o app à Tela de Início (Compartilhar → Adicionar à Tela de Início) e abra por lá." : "Este navegador não permite notificações.", false);
+      return;
+    }
+    if(Notification.permission==="granted"){ notifUI("",false); subscribePush().catch(()=>notifUI("Não deu para ativar as notificações agora.",true)); }
+    else if(Notification.permission==="denied") notifUI("As notificações estão bloqueadas. Libere nos Ajustes do celular, em Notificações → Agenda.", false);
+    else notifUI("Receba um aviso quando um compromisso for marcado e 1 hora antes de cada um.", true);
+  }
+  async function subscribePush(){
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToBytes(CFG.vapidPublicKey)});
+    const j=sub.toJSON();
+    await rpc("agenda_subscribe",{p_name:S.me, p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth});
+  }
+  $("notifBtn").addEventListener("click", async ()=>{
+    $("notifBtn").disabled=true;
+    try{
+      const perm=await Notification.requestPermission();
+      if(perm==="granted"){ await subscribePush(); notifUI("Notificações ativadas neste celular.",false); setTimeout(()=>notifUI("",false),4000); }
+      else updateNotif();
+    }catch(e){ notifUI("Não deu para ativar as notificações. Tente de novo.",true); }
+    finally{ $("notifBtn").disabled=false; }
+  });
+
   // ---------- entrada ----------
   function showGate(msg){
     $("app").classList.add("hidden"); $("gate").classList.remove("hidden");
@@ -420,7 +468,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   }
   function start(){
     $("gate").classList.add("hidden"); $("app").classList.remove("hidden");
-    render(); refresh();
+    render(); refresh(); updateNotif();
     if(!S.timer) S.timer=setInterval(()=>{ if(document.visibilityState==="visible") refresh(); },15000);
   }
   $("gateForm").addEventListener("submit", async ev=>{

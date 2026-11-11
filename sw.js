@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para abrir rápido e funcionar como app instalado.
 // Os compromissos sempre vêm do servidor (não ficam neste cache).
-const CACHE = "agenda-a-dois-v2";
+const CACHE = "agenda-a-dois-v3";
 const FILES = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -17,4 +17,21 @@ self.addEventListener("fetch", e => {
     fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
       .catch(() => caches.match(e.request).then(r => r || caches.match("./index.html")))
   );
+});
+
+// Notificações: mostra o aviso e abre o app ao tocar.
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Agenda a Dois", {
+    body: d.body || "", icon: "icon-192.png", badge: "icon-192.png", data: { url: d.url || "./" }
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "./";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const c of list) if ("focus" in c) return c.focus();
+    return self.clients.openWindow(url);
+  }));
 });
