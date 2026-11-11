@@ -378,6 +378,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     const box=$("agbar"); box.replaceChildren();
     for(const g of S.agendas) box.append(el("button",{class:"agchip"+(g.code===S.code?" on":""),type:"button","aria-pressed":g.code===S.code?"true":"false",onclick:()=>switchAgenda(g.code)},g.name));
     box.append(el("button",{class:"agchip ghost",type:"button",onclick:openAdd},"+ Agenda"));
+    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openRename},"Editar nome"));
     box.append(el("button",{class:"agchip ghost",type:"button",onclick:openShare},"Compartilhar"));
   }
   function render(){ renderAgendas(); renderPeople(); renderMonth(); renderSide(); }
@@ -548,6 +549,27 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       err, closeRow());
   }
 
+  function openRename(){
+    const a=cur(); if(!a) return;
+    const mine=!a.owner||same(a.owner,S.me);
+    const err=el("div",{class:"err",role:"alert"});
+    if(!mine){ openModal2(el("h3",null,"Editar nome da agenda"), el("p",null,"Só "+a.owner+", que criou esta agenda, pode mudar o nome dela."), closeRow()); return; }
+    const nome=el("input",{id:"r-name",maxlength:"60",value:a.name});
+    const bSalvar=el("button",{class:"btn primary",type:"submit"},"Salvar");
+    const form=el("form",{style:"display:flex;flex-direction:column;gap:12px",novalidate:""},
+      el("div",{class:"field"}, el("label",{for:"r-name"},"Nome da agenda"), nome), err,
+      el("div",{class:"actions"}, el("div",{class:"r"}, el("button",{class:"btn",type:"button",onclick:closeModal2},"Cancelar"), bSalvar)));
+    form.addEventListener("submit", async ev=>{
+      ev.preventDefault();
+      const n=nome.value.trim(); if(!n){ err.textContent="Digite um nome."; return; }
+      bSalvar.disabled=true; err.textContent="";
+      try{ const r=await rpc("agenda_rename",{p_code:a.code,p_name:n,p_author:S.me}); a.name=r.name; saveAgendas(); renderAgendas(); closeModal2(); }
+      catch(e){ err.textContent=agErr(e); } finally{ bSalvar.disabled=false; }
+    });
+    openModal2(el("h3",null,"Editar nome da agenda"), form);
+    setTimeout(()=>{ nome.focus(); nome.select(); },30);
+  }
+
   function openShare(isNew){
     const a=cur(); if(!a) return;
     const mine=!a.owner||same(a.owner,S.me);
@@ -564,13 +586,6 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       box, el("div",{class:"actions"},el("div",{class:"r"},bCopy))
     ];
     if(mine){
-      const nome=el("input",{id:"s-name",maxlength:"60",value:a.name,"aria-label":"Nome da agenda"});
-      const bNome=el("button",{class:"btn",type:"button"},"Renomear");
-      bNome.addEventListener("click", async ()=>{
-        const n=nome.value.trim(); if(!n) return; bNome.disabled=true; err.textContent="";
-        try{ const r=await rpc("agenda_rename",{p_name:n,p_author:S.me}); a.name=r.name; saveAgendas(); renderAgendas(); bNome.textContent="Salvo"; }
-        catch(e){ err.textContent=agErr(e); } finally{ bNome.disabled=false; }
-      });
       const bRot=el("button",{class:"btn danger",type:"button"},"Gerar novo código");
       bRot.addEventListener("click", async ()=>{
         if(!bRot.dataset.c){ bRot.dataset.c="1"; bRot.textContent="Confirmar: o código atual deixa de funcionar"; return; }
@@ -578,7 +593,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
         try{ const r=await rpc("agenda_rotate",{p_author:S.me}); a.code=r.code; a.owner=a.owner||S.me; S.code=r.code; saveAgendas(); box.textContent=r.code; bCopy.textContent="Copiar código"; bRot.textContent="Gerar novo código"; bRot.dataset.c=""; resubscribe(); }
         catch(e){ err.textContent=agErr(e); } finally{ bRot.disabled=false; }
       });
-      kids.push(el("hr"), el("div",{class:"inline"},nome,bNome),
+      kids.push(el("hr"),
         el("p",null,"Gerar um novo código tira o acesso de quem tem o código atual. Depois, envie o novo código só para quem deve continuar."), bRot);
     }
     const bSair=el("button",{class:"linkbtn",type:"button"},"Sair desta agenda neste celular");
