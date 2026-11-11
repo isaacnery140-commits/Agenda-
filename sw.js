@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para abrir rápido e funcionar como app instalado.
 // Os compromissos sempre vêm do servidor (não ficam neste cache).
-const CACHE = "agenda-a-dois-v8";
+const CACHE = "agenda-a-dois-v9";
 const FILES = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {

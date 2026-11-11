@@ -350,7 +350,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       const key=ymd(d), evs=eventsOn(key);
       const cls=["day"]; if(d.getMonth()!==v.getMonth()) cls.push("out"); if(key===today) cls.push("today"); if(key===S.sel) cls.push("sel");
       const label=d.toLocaleDateString("pt-BR",{day:"numeric",month:"long"})+(evs.length?", "+evs.length+" compromisso"+(evs.length>1?"s":""):"");
-      const b=el("button",{class:cls.join(" "),type:"button","aria-label":label,onclick:()=>{S.sel=key;render();},ondblclick:()=>openForm(null,key)}, el("span",{class:"n"},d.getDate()));
+      const b=el("button",{class:cls.join(" "),type:"button","aria-label":label,onclick:()=>{ const again=S.sel===key; S.sel=key; render(); if(again||!evs.length) openForm(null,key); }}, el("span",{class:"n"},d.getDate()));
       evs.slice(0,2).forEach(e=>b.append(el("div",{class:"pill",style:"--c:"+colorOf(e.by)},(e.allDay?"":(e.start||"")+" ")+e.title)));
       if(evs.length>2) b.append(el("div",{class:"more"},"+"+(evs.length-2)+" mais"));
       if(evs.length){ const dots=el("div",{class:"dots"}); evs.slice(0,4).forEach(e=>dots.append(el("span",{class:"dot",style:"background:"+colorOf(e.by)}))); b.append(dots); }
