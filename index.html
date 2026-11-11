@@ -434,7 +434,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       const row = await rpc("agenda_save",{
         p_id: S.editing?S.editing.id:null, p_title:title, p_date:date, p_all_day:allDay,
         p_start: allDay?null:(start||null), p_end: allDay?null:(end||null),
-        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me, p_allow_edit:$("f-allow").checked, p_remind:allDay?0:remind
+        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me, p_allow_edit:$("f-allow").checked, p_remind:Math.min(10080,Math.max(0,remind))
       });
       if(row && row.id) S.events.set(row.id,toLocal(row));
       S.sel=date; const d=parse(date); S.view=new Date(d.getFullYear(),d.getMonth(),1);
