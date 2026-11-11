@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Agenda a Dois</title>
+<title>Agenda</title>
 <meta name="theme-color" content="#2d5b8c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -59,6 +59,15 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .banner.warn{background:color-mix(in srgb, var(--p1) 18%, var(--surface))}
 .hidden{display:none !important}
 .lock{font-size:11px;color:var(--muted)}
+.agbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.agchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-weight:500}
+.agchip.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.agchip.ghost{border-style:dashed;color:var(--muted)}
+.codebox{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:17px;font-weight:600;padding:12px;border-radius:10px;background:var(--accent-soft);text-align:center;overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
+.modal p{margin:0;color:var(--muted);font-size:14px}
+.modal hr{border:0;border-top:1px solid var(--line);width:100%;margin:2px 0}
+.inline{display:flex;gap:8px}
+.inline input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 10px}
 
 .grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:820px){.grid{grid-template-columns:1fr}}
@@ -134,8 +143,8 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 <body>
 <div class="gate hidden" id="gate">
   <form class="modal" id="gateForm" novalidate>
-    <h3>Agenda a Dois</h3>
-    <p>Digite o código da agenda que vocês combinaram e o seu nome. Isso fica salvo neste celular.</p>
+    <h3>Agenda</h3>
+    <p>Digite o código da agenda que você recebeu e o seu nome. Isso fica salvo neste celular.</p>
     <div class="field"><label for="g-code">Código da agenda</label><input id="g-code" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ex.: palavra-palavra-palavra-1234"></div>
     <div class="field"><label for="g-name">Seu nome</label><input id="g-name" maxlength="40" autocomplete="given-name" placeholder="Como o outro vai te ver"></div>
     <div class="err" id="gateErr" role="alert"></div>
@@ -146,7 +155,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 <div class="app hidden" id="app">
   <header class="top">
     <div class="brand">
-      <h1>Agenda a Dois</h1>
+      <h1 id="agTitle">Agenda</h1>
       <p id="status">Conectando…</p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -155,6 +164,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     </div>
   </header>
 
+  <div class="agbar" id="agbar"></div>
   <div class="banner hidden" id="banner"></div>
   <div class="banner hidden" id="notif" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span id="notifText"></span><button class="btn primary hidden" id="notifBtn" type="button">Ativar notificações</button></div>
 
@@ -181,7 +191,6 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
         <h3>Próximos compromissos</h3>
         <div class="list" id="upcoming"></div>
       </section>
-      <p style="margin:0;text-align:center"><button class="linkbtn" id="logout" type="button">Sair desta agenda neste celular</button></p>
     </aside>
   </div>
   <button class="btn primary fab" id="fab" type="button">+ Novo</button>
@@ -201,7 +210,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     </div>
     <div class="field"><label for="f-place">Local</label><input id="f-place" maxlength="120" placeholder="Opcional"></div>
     <div class="field"><label for="f-notes">Observações</label><textarea id="f-notes" maxlength="1000" placeholder="Opcional"></textarea></div>
-    <label class="check" id="allowRow" for="f-allow"><input id="f-allow" type="checkbox"> Permitir que a outra pessoa edite</label>
+    <label class="check" id="allowRow" for="f-allow"><input id="f-allow" type="checkbox"> Permitir que os outros desta agenda editem</label>
     <div class="byline" id="byline"></div>
     <div class="err" id="formErr" role="alert"></div>
     <div class="actions">
@@ -213,6 +222,8 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     </div>
   </form>
 </div>
+
+<div class="overlay hidden" id="overlay2"><div class="modal" id="modal2"></div></div>
 
 <script src="config.js"></script>
 <script>
@@ -236,7 +247,18 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   };
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
 
-  const S = { events:new Map(), view:new Date(), sel:ymd(new Date()), code:store.get("agenda.code"), me:store.get("agenda.name"), editing:null, loaded:false, timer:null };
+  function loadAgendas(){
+    let l=[]; try{ l=JSON.parse(store.get("agenda.list")||"[]")||[]; }catch(e){ l=[]; }
+    l=l.filter(a=>a&&typeof a.code==="string"&&a.code);
+    const old=store.get("agenda.code");   // versão anterior guardava um código só
+    if(old && !l.some(a=>a.code===old)) l.push({code:old,name:"Agenda 1",owner:""});
+    return l;
+  }
+  const S = { events:new Map(), view:new Date(), sel:ymd(new Date()), agendas:loadAgendas(), code:null, me:store.get("agenda.name"), editing:null, loaded:false, timer:null };
+  S.code = (S.agendas.find(a=>a.code===store.get("agenda.cur"))||S.agendas[0]||{}).code||null;
+  function saveAgendas(){ store.set("agenda.list",JSON.stringify(S.agendas)); if(S.code) store.set("agenda.cur",S.code); store.del("agenda.code"); }
+  const cur = () => S.agendas.find(a=>a.code===S.code)||null;
+  if(S.agendas.length) saveAgendas();
   S.view.setDate(1);
 
   // ---------- API (funções do banco, protegidas pelo código) ----------
@@ -256,14 +278,17 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
 
   async function refresh(){
+    const code=S.code; if(!code) return;
     try{
-      const rows = await rpc("agenda_list");
+      const rows = await rpc("agenda_list",{p_code:code});
+      if(code!==S.code) return;   // trocou de agenda enquanto carregava
       const m=new Map(); (rows||[]).forEach(x=>m.set(x.id,toLocal(x)));
       S.events=m; S.loaded=true; banner("");
       $("status").textContent="Sincronizado às "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
       render();
     }catch(e){
-      if(e.badCode){ logout("O código da agenda não confere. Digite de novo."); return; }
+      if(code!==S.code) return;
+      if(e.badCode){ const a=cur(); dropAgenda(code, "O código da agenda"+(a?" “"+a.name+"”":"")+" foi trocado. Peça o novo código a quem criou."); return; }
       $("status").textContent="Sem conexão";
       banner("Não foi possível atualizar a agenda. Verifique a internet; o app tenta de novo sozinho.",true);
     }
@@ -348,7 +373,14 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!next.length) up.append(el("div",{class:"empty"},S.loaded?"Nenhum compromisso pela frente.":"Carregando…"));
     next.forEach(e=>up.append(evRow(e,true)));
   }
-  function render(){ renderPeople(); renderMonth(); renderSide(); }
+  function renderAgendas(){
+    const a=cur(); $("agTitle").textContent=a?a.name:"Agenda"; document.title=a?a.name:"Agenda";
+    const box=$("agbar"); box.replaceChildren();
+    for(const g of S.agendas) box.append(el("button",{class:"agchip"+(g.code===S.code?" on":""),type:"button","aria-pressed":g.code===S.code?"true":"false",onclick:()=>switchAgenda(g.code)},g.name));
+    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openAdd},"+ Agenda"));
+    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openShare},"Compartilhar"));
+  }
+  function render(){ renderAgendas(); renderPeople(); renderMonth(); renderSide(); }
   function banner(msg,warn){ const b=$("banner"); if(!msg){b.classList.add("hidden");return;} b.textContent=msg; b.classList.toggle("warn",!!warn); b.classList.remove("hidden"); }
 
   // ---------- formulário ----------
@@ -444,7 +476,9 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     let sub=await reg.pushManager.getSubscription();
     if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToBytes(CFG.vapidPublicKey)});
     const j=sub.toJSON();
-    await rpc("agenda_subscribe",{p_name:S.me, p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth});
+    for(const a of S.agendas){
+      try{ await rpc("agenda_subscribe",{p_code:a.code, p_name:S.me, p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth}); }catch(e){ if(!e.badCode) throw e; }
+    }
   }
   $("notifBtn").addEventListener("click", async ()=>{
     $("notifBtn").disabled=true;
@@ -456,19 +490,114 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     finally{ $("notifBtn").disabled=false; }
   });
 
+  // ---------- agendas ----------
+  const resubscribe = () => { if(pushOK && Notification.permission==="granted") subscribePush().catch(()=>{}); };
+  function switchAgenda(code){
+    if(code===S.code) return;
+    S.code=code; S.events=new Map(); S.loaded=false; saveAgendas(); banner(""); render(); refresh(); checkMeta(code);
+  }
+  async function checkMeta(code){   // atualiza nome e dono da agenda
+    try{
+      const m=await rpc("agenda_check",{p_code:code}); const a=S.agendas.find(x=>x.code===code);
+      if(a && m && typeof m==="object"){ a.name=m.name||a.name; a.owner=m.created_by||""; saveAgendas(); renderAgendas(); }
+    }catch(e){}
+  }
+  function addAgenda(code,name,owner){
+    if(!S.agendas.some(a=>a.code===code)) S.agendas.push({code,name:name||"Agenda",owner:owner||""});
+    S.code=code; S.events=new Map(); S.loaded=false; saveAgendas();
+  }
+  function dropAgenda(code,msg){
+    S.agendas=S.agendas.filter(a=>a.code!==code);
+    S.events=new Map(); S.loaded=false;
+    if(S.agendas.length){ S.code=S.agendas[0].code; saveAgendas(); render(); banner(msg||"",true); refresh(); }
+    else{ S.code=null; store.del("agenda.list"); store.del("agenda.cur"); store.del("agenda.code"); if(S.timer){ clearInterval(S.timer); S.timer=null; } showGate(msg); }
+  }
+  const agErr = e => /sem_permissao/.test(e.message||"") ? "Só quem criou esta agenda pode fazer isso." : e.badCode ? "Código incorreto." : /limite_de_agendas/.test(e.message||"") ? "Limite de agendas atingido." : "Não deu certo. Tente de novo em instantes.";
+  function openModal2(...kids){ const m=$("modal2"); m.replaceChildren(...kids); $("overlay2").classList.remove("hidden"); }
+  function closeModal2(){ $("overlay2").classList.add("hidden"); }
+  $("overlay2").addEventListener("click",e=>{ if(e.target.id==="overlay2") closeModal2(); });
+  const closeRow = () => el("div",{class:"actions"}, el("div",{class:"r"}, el("button",{class:"btn",type:"button",onclick:closeModal2},"Fechar")));
+
+  function openAdd(){
+    const err=el("div",{class:"err",role:"alert"});
+    const nome=el("input",{id:"a-name",maxlength:"60",placeholder:"Ex.: Trabalho com a Carla","aria-label":"Nome da nova agenda"});
+    const cod=el("input",{id:"a-code",autocomplete:"off",autocapitalize:"none",spellcheck:"false",placeholder:"palavra-palavra-palavra-12345","aria-label":"Código da agenda"});
+    const bCriar=el("button",{class:"btn primary",type:"button"},"Criar");
+    const bEntrar=el("button",{class:"btn primary",type:"button"},"Entrar");
+    bCriar.addEventListener("click", async ()=>{
+      const n=nome.value.trim(); if(!n){ err.textContent="Dê um nome à agenda."; return; }
+      bCriar.disabled=true; err.textContent="";
+      try{ const r=await rpc("agenda_create",{p_name:n,p_author:S.me}); addAgenda(r.code,r.name,S.me); render(); refresh(); resubscribe(); openShare(true); }
+      catch(e){ err.textContent=agErr(e); } finally{ bCriar.disabled=false; }
+    });
+    bEntrar.addEventListener("click", async ()=>{
+      const c=cod.value.trim().toLowerCase(); if(!c){ err.textContent="Digite o código."; return; }
+      if(S.agendas.some(a=>a.code===c)){ closeModal2(); switchAgenda(c); return; }
+      bEntrar.disabled=true; err.textContent="";
+      try{ const m=await rpc("agenda_check",{p_code:c}); addAgenda(c,m&&m.name,m&&m.created_by); closeModal2(); render(); refresh(); resubscribe(); }
+      catch(e){ err.textContent=e.badCode?"Código incorreto. Confira com quem criou a agenda.":agErr(e); } finally{ bEntrar.disabled=false; }
+    });
+    openModal2(
+      el("h3",null,"Nova agenda"),
+      el("p",null,"Crie uma agenda separada para compartilhar com outra pessoa. Ela recebe um código próprio."),
+      el("div",{class:"inline"},nome,bCriar),
+      el("hr"),
+      el("h3",null,"Entrar com um código"),
+      el("p",null,"Recebeu o código de uma agenda de alguém? Digite aqui."),
+      el("div",{class:"inline"},cod,bEntrar),
+      err, closeRow());
+  }
+
+  function openShare(isNew){
+    const a=cur(); if(!a) return;
+    const mine=!a.owner||same(a.owner,S.me);
+    const err=el("div",{class:"err",role:"alert"});
+    const box=el("div",{class:"codebox"},a.code);
+    const bCopy=el("button",{class:"btn primary",type:"button"},"Copiar código");
+    bCopy.addEventListener("click", async ()=>{
+      try{ await navigator.clipboard.writeText(a.code); bCopy.textContent="Copiado"; }
+      catch(e){ err.textContent="Não deu para copiar. Toque e segure no código para copiar."; }
+    });
+    const kids=[
+      el("h3",null,isNew===true?"Agenda criada: "+a.name:"Compartilhar “"+a.name+"”"),
+      el("p",null,"Só quem tiver este código vê esta agenda. Envie o código e o link do app para a pessoa; ela toca em “+ Agenda” e depois em “Entrar com um código”."),
+      box, el("div",{class:"actions"},el("div",{class:"r"},bCopy))
+    ];
+    if(mine){
+      const nome=el("input",{id:"s-name",maxlength:"60",value:a.name,"aria-label":"Nome da agenda"});
+      const bNome=el("button",{class:"btn",type:"button"},"Renomear");
+      bNome.addEventListener("click", async ()=>{
+        const n=nome.value.trim(); if(!n) return; bNome.disabled=true; err.textContent="";
+        try{ const r=await rpc("agenda_rename",{p_name:n,p_author:S.me}); a.name=r.name; saveAgendas(); renderAgendas(); bNome.textContent="Salvo"; }
+        catch(e){ err.textContent=agErr(e); } finally{ bNome.disabled=false; }
+      });
+      const bRot=el("button",{class:"btn danger",type:"button"},"Gerar novo código");
+      bRot.addEventListener("click", async ()=>{
+        if(!bRot.dataset.c){ bRot.dataset.c="1"; bRot.textContent="Confirmar: o código atual deixa de funcionar"; return; }
+        bRot.disabled=true; err.textContent="";
+        try{ const r=await rpc("agenda_rotate",{p_author:S.me}); a.code=r.code; a.owner=a.owner||S.me; S.code=r.code; saveAgendas(); box.textContent=r.code; bCopy.textContent="Copiar código"; bRot.textContent="Gerar novo código"; bRot.dataset.c=""; resubscribe(); }
+        catch(e){ err.textContent=agErr(e); } finally{ bRot.disabled=false; }
+      });
+      kids.push(el("hr"), el("div",{class:"inline"},nome,bNome),
+        el("p",null,"Gerar um novo código tira o acesso de quem tem o código atual. Depois, envie o novo código só para quem deve continuar."), bRot);
+    }
+    const bSair=el("button",{class:"linkbtn",type:"button"},"Sair desta agenda neste celular");
+    bSair.addEventListener("click",()=>{
+      if(!bSair.dataset.c){ bSair.dataset.c="1"; bSair.textContent="Confirmar saída (guarde o código se quiser voltar)"; return; }
+      closeModal2(); dropAgenda(a.code,"");
+    });
+    kids.push(err, el("hr"), bSair, closeRow());
+    openModal2(...kids);
+  }
+
   // ---------- entrada ----------
   function showGate(msg){
     $("app").classList.add("hidden"); $("gate").classList.remove("hidden");
     $("g-name").value=S.me||""; $("gateErr").textContent=msg||"";
   }
-  function logout(msg){
-    store.del("agenda.code"); S.code=null; S.events=new Map(); S.loaded=false;
-    if(S.timer){ clearInterval(S.timer); S.timer=null; }
-    showGate(msg);
-  }
   function start(){
     $("gate").classList.add("hidden"); $("app").classList.remove("hidden");
-    render(); refresh(); updateNotif();
+    render(); refresh(); updateNotif(); checkMeta(S.code);
     if(!S.timer) S.timer=setInterval(()=>{ if(document.visibilityState==="visible") refresh(); },15000);
   }
   $("gateForm").addEventListener("submit", async ev=>{
@@ -477,13 +606,16 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!code){ $("gateErr").textContent="Digite o código da agenda."; return; }
     if(!name){ $("gateErr").textContent="Digite seu nome."; return; }
     $("gateBtn").disabled=true; $("gateErr").textContent="";
-    S.code=code;
-    try{ await rpc("agenda_check"); store.set("agenda.code",code); store.set("agenda.name",name); S.me=name; start(); }
-    catch(e){ S.code=null; $("gateErr").textContent = e.badCode ? "Código incorreto. Confira com quem criou a agenda." : "Sem conexão com o servidor. Tente de novo."; }
+    try{
+      const m=await rpc("agenda_check",{p_code:code});
+      store.set("agenda.name",name); S.me=name;
+      addAgenda(code, m&&typeof m==="object"?m.name:"Agenda", m&&typeof m==="object"?m.created_by:"");
+      start();
+    }catch(e){ $("gateErr").textContent = e.badCode ? "Código incorreto. Confira com quem criou a agenda." : "Sem conexão com o servidor. Tente de novo."; }
     finally{ $("gateBtn").disabled=false; }
   });
-  $("logout").addEventListener("click",()=>logout(""));
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && S.code) refresh(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal2(); });
 
   if(S.code && S.me) start(); else showGate("");
 

@@ -1,6 +1,6 @@
-# Agenda a Dois
+# Agenda compartilhada
 
-Agenda compartilhada para duas pessoas, feita para usar no celular. Abre direto no navegador, sem conta e sem login: cada pessoa digita o código da agenda e o próprio nome uma vez, e o celular lembra.
+Agendas compartilhadas, feitas para usar no celular. Cada agenda tem um código próprio: só quem recebe o código vê aquela agenda, e uma pessoa pode participar de várias. Abre direto no navegador, sem conta e sem login: cada pessoa digita o código da agenda e o próprio nome uma vez, e o celular lembra.
 
 ## Como usar no celular
 

@@ -16,9 +16,9 @@ Deno.serve(async (req: Request) => {
   webpush.setVapidDetails(APP_URL, cfg.vapid_public, cfg.vapid_private);
 
   const body = await req.json().catch(() => ({}));
-  let messages: { title: string; body: string; exclude?: string }[] = [];
+  let messages: { title: string; body: string; agenda_id?: string; exclude?: string }[] = [];
   if (body.kind === "send") {
-    messages = [{ title: String(body.title ?? "Agenda a Dois"), body: String(body.body ?? ""), exclude: String(body.exclude ?? "") }];
+    messages = [{ title: String(body.title ?? "Agenda a Dois"), body: String(body.body ?? ""), agenda_id: body.agenda_id, exclude: String(body.exclude ?? "") }];
   } else if (body.kind === "reminders") {
     const { data, error } = await sb.rpc("agenda_due_reminders");
     if (error) return json({ error: error.message }, 500);
@@ -26,10 +26,11 @@ Deno.serve(async (req: Request) => {
   } else return json({ error: "kind" }, 400);
   if (!messages.length) return json({ sent: 0, failed: 0 });
 
-  const { data: subs } = await sb.from("agenda_push_subs").select("endpoint,p256dh,auth,name");
   let sent = 0, failed = 0;
   const statuses: number[] = [];
   for (const m of messages) {
+    if (!m.agenda_id) continue;
+    const { data: subs } = await sb.from("agenda_push_subs").select("endpoint,p256dh,auth,name").eq("agenda_id", m.agenda_id);
     const ex = (m.exclude ?? "").trim().toLowerCase();
     const targets = (subs ?? []).filter((s) => !ex || s.name.trim().toLowerCase() !== ex);
     await Promise.all(targets.map(async (s) => {
