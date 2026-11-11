@@ -1,6 +1,6 @@
 // Service worker: guarda os arquivos do app para abrir rápido e funcionar como app instalado.
 // Os compromissos sempre vêm do servidor (não ficam neste cache).
-const CACHE = "agenda-a-dois-v6";
+const CACHE = "agenda-a-dois-v7";
 const FILES = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -23,9 +23,20 @@ self.addEventListener("fetch", e => {
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.title || "Agenda a Dois", {
-    body: d.body || "", icon: "icon-192.png", badge: "icon-192.png", data: { url: d.url || "./" }
-  }));
+  // Soma 1 no número vermelho do ícone do app.
+  const bump = async () => {
+    const c = await caches.open("agenda-state");
+    const r = await c.match("badge");
+    const n = (r ? parseInt(await r.text(), 10) || 0 : 0) + 1;
+    await c.put("badge", new Response(String(n)));
+    if (self.navigator && self.navigator.setAppBadge) await self.navigator.setAppBadge(n);
+  };
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(d.title || "Agenda", {
+      body: d.body || "", icon: "icon-192.png", badge: "icon-192.png", data: { url: d.url || "./" }
+    }),
+    bump().catch(() => {})
+  ]));
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();

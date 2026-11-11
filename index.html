@@ -655,7 +655,13 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     }catch(e){ $("gateErr").textContent = e.badCode ? "Código incorreto. Confira com quem criou a agenda." : "Sem conexão com o servidor. Tente de novo."; }
     finally{ $("gateBtn").disabled=false; }
   });
-  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && S.code){ refresh(); updateNotif(); } });
+  // Zera o número vermelho do ícone quando o app é aberto.
+  function clearBadge(){
+    try{ if(navigator.clearAppBadge) navigator.clearAppBadge().catch(()=>{}); }catch(e){}
+    try{ caches.open("agenda-state").then(c=>c.delete("badge")).catch(()=>{}); }catch(e){}
+  }
+  clearBadge();
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ clearBadge(); if(S.code){ refresh(); updateNotif(); } } });
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal2(); });
 
   if(S.code && S.me) start(); else showGate("");
