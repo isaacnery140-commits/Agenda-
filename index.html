@@ -288,7 +288,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       render();
     }catch(e){
       if(code!==S.code) return;
-      if(e.badCode){ const a=cur(); dropAgenda(code, "O código da agenda"+(a?" “"+a.name+"”":"")+" foi trocado. Peça o novo código a quem criou."); return; }
+      if(e.badCode){ const a=cur(); dropAgenda(code, "O código da agenda"+(a?" “"+a.name+"”":"")+" foi excluída ou teve o código trocado. Fale com quem criou."); return; }
       $("status").textContent="Sem conexão";
       banner("Não foi possível atualizar a agenda. Verifique a internet; o app tenta de novo sozinho.",true);
     }
@@ -463,14 +463,39 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!text){ box.classList.add("hidden"); return; }
     $("notifText").textContent=text; $("notifBtn").classList.toggle("hidden",!showBtn); box.classList.remove("hidden");
   }
+  let pushBusy=null, askArmed=false;
+  // Garante, em silêncio, que este celular está inscrito em todas as agendas. Tenta de novo sozinho se falhar.
+  function ensurePush(){
+    if(!pushOK || Notification.permission!=="granted" || !S.agendas.length) return Promise.resolve(false);
+    if(pushBusy) return pushBusy;
+    pushBusy=subscribePush().then(()=>{ store.set("agenda.notif","1"); saveSwState(); return true; })
+      .catch(()=>{ setTimeout(ensurePush,60000); return false; })
+      .finally(()=>{ pushBusy=null; });
+    return pushBusy;
+  }
+  // Guarda o que o serviço em segundo plano precisa para se reinscrever sozinho.
+  function saveSwState(){
+    try{ caches.open("agenda-state").then(c=>c.put("state",new Response(JSON.stringify({url:CFG.supabaseUrl,key:CFG.supabaseKey,vapid:CFG.vapidPublicKey,name:S.me,codes:S.agendas.map(a=>a.code)})))).catch(()=>{}); }catch(e){}
+  }
+  async function askPermission(){
+    try{
+      const perm=await Notification.requestPermission();
+      if(perm==="granted"){ notifUI("",false); await ensurePush(); }
+      updateNotif();
+    }catch(e){}
+  }
   function updateNotif(){
     if(!pushOK){
       notifUI(isIOS && !standalone ? "Para receber notificações no iPhone, adicione o app à Tela de Início (Compartilhar → Adicionar à Tela de Início) e abra por lá." : "Este navegador não permite notificações.", false);
       return;
     }
-    if(Notification.permission==="granted"){ notifUI("",false); subscribePush().catch(()=>notifUI("Não deu para ativar as notificações agora.",true)); }
-    else if(Notification.permission==="denied") notifUI("As notificações estão bloqueadas. Libere nos Ajustes do celular, em Notificações → Agenda.", false);
-    else notifUI("Receba um aviso quando um compromisso for marcado e 1 hora antes de cada um.", true);
+    if(Notification.permission==="granted"){ notifUI("",false); ensurePush(); }
+    else if(Notification.permission==="denied") notifUI("As notificações estão bloqueadas neste celular. Libere em Ajustes → Notificações → Agenda.", false);
+    else{
+      notifUI("Receba um aviso quando um compromisso for marcado e 1 hora antes de cada um.", true);
+      // O celular só deixa pedir a permissão depois de um toque: pede sozinho no primeiro toque na tela.
+      if(!askArmed){ askArmed=true; document.addEventListener("click",function once(ev){ document.removeEventListener("click",once,true); askArmed=false; if(Notification.permission==="default" && !(ev.target&&ev.target.id==="notifBtn")) askPermission(); },true); }
+    }
   }
   async function subscribePush(){
     const reg=await navigator.serviceWorker.ready;
@@ -481,18 +506,10 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       try{ await rpc("agenda_subscribe",{p_code:a.code, p_name:S.me, p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth}); }catch(e){ if(!e.badCode) throw e; }
     }
   }
-  $("notifBtn").addEventListener("click", async ()=>{
-    $("notifBtn").disabled=true;
-    try{
-      const perm=await Notification.requestPermission();
-      if(perm==="granted"){ await subscribePush(); notifUI("Notificações ativadas neste celular.",false); setTimeout(()=>notifUI("",false),4000); }
-      else updateNotif();
-    }catch(e){ notifUI("Não deu para ativar as notificações. Tente de novo.",true); }
-    finally{ $("notifBtn").disabled=false; }
-  });
+  $("notifBtn").addEventListener("click", async ()=>{ $("notifBtn").disabled=true; await askPermission(); $("notifBtn").disabled=false; });
 
   // ---------- agendas ----------
-  const resubscribe = () => { if(pushOK && Notification.permission==="granted") subscribePush().catch(()=>{}); };
+  const resubscribe = () => { ensurePush(); };
   function switchAgenda(code){
     if(code===S.code) return;
     S.code=code; S.events=new Map(); S.loaded=false; saveAgendas(); banner(""); render(); refresh(); checkMeta(code);
@@ -595,6 +612,15 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       });
       kids.push(el("hr"),
         el("p",null,"Gerar um novo código tira o acesso de quem tem o código atual. Depois, envie o novo código só para quem deve continuar."), bRot);
+      const bDel=el("button",{class:"btn danger",type:"button"},"Excluir agenda");
+      bDel.addEventListener("click", async ()=>{
+        if(S.agendas.length<2){ err.textContent="Esta é a sua única agenda. Crie ou entre em outra antes de excluir esta."; return; }
+        if(!bDel.dataset.c){ bDel.dataset.c="1"; bDel.textContent="Confirmar: apaga a agenda e os compromissos dela para todos"; return; }
+        bDel.disabled=true; err.textContent="";
+        try{ await rpc("agenda_remove",{p_code:a.code,p_author:S.me}); closeModal2(); dropAgenda(a.code,"Agenda “"+a.name+"” excluída."); }
+        catch(e){ err.textContent=agErr(e); bDel.disabled=false; }
+      });
+      kids.push(el("p",null,"Excluir apaga esta agenda e todos os compromissos dela, para todas as pessoas. Não dá para desfazer."), bDel);
     }
     const bSair=el("button",{class:"linkbtn",type:"button"},"Sair desta agenda neste celular");
     bSair.addEventListener("click",()=>{
@@ -629,7 +655,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     }catch(e){ $("gateErr").textContent = e.badCode ? "Código incorreto. Confira com quem criou a agenda." : "Sem conexão com o servidor. Tente de novo."; }
     finally{ $("gateBtn").disabled=false; }
   });
-  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && S.code) refresh(); });
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && S.code){ refresh(); updateNotif(); } });
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal2(); });
 
   if(S.code && S.me) start(); else showGate("");
