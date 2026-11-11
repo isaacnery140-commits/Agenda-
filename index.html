@@ -220,11 +220,18 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
   const parse = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
   const PCOL = ["--p0","--p1","--p2","--p3"];
-  const store = {
-    get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
-    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
-    del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  // Guarda o login em dois lugares (localStorage e cookie de longa duração), para o celular não esquecer.
+  const cookie = {
+    get(k){ try{ const m=document.cookie.match(new RegExp("(?:^|; )"+k.replace(/\./g,"\\.")+"=([^;]*)")); return m?decodeURIComponent(m[1]):null; }catch(e){ return null; } },
+    set(k,v){ try{ document.cookie=k+"="+encodeURIComponent(v)+"; max-age=34560000; path=/; SameSite=Lax; Secure"; }catch(e){} },
+    del(k){ try{ document.cookie=k+"=; max-age=0; path=/; SameSite=Lax; Secure"; }catch(e){} }
   };
+  const store = {
+    get(k){ let v=null; try{ v=localStorage.getItem(k); }catch(e){} if(v==null){ v=cookie.get(k); if(v!=null){ try{ localStorage.setItem(k,v); }catch(e){} } } else if(cookie.get(k)==null) cookie.set(k,v); return v; },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} cookie.set(k,v); },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){} cookie.del(k); }
+  };
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
 
   const S = { events:new Map(), view:new Date(), sel:ymd(new Date()), code:store.get("agenda.code"), me:store.get("agenda.name"), editing:null, loaded:false, timer:null };
   S.view.setDate(1);
