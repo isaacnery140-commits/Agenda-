@@ -208,6 +208,12 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       <div class="field"><label for="f-start">Início</label><input id="f-start" type="time" value="09:00"></div>
       <div class="field"><label for="f-end">Fim</label><input id="f-end" type="time" value="10:00"></div>
     </div>
+    <div class="field" id="remindRow">
+      <label for="f-remind">Avisar antes</label>
+      <div class="inline"><input id="f-remind" type="number" inputmode="numeric" min="0" max="999" step="1" value="1">
+        <select id="f-remind-unit" aria-label="Unidade do aviso" style="border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:9px 10px;color:inherit;font:inherit"><option value="1">minutos</option><option value="60" selected>horas</option><option value="1440">dias</option></select></div>
+      <span class="byline">Use 0 para não avisar antes. Na hora marcada chega outro aviso.</span>
+    </div>
     <div class="field"><label for="f-place">Local</label><input id="f-place" maxlength="120" placeholder="Opcional"></div>
     <div class="field"><label for="f-notes">Observações</label><textarea id="f-notes" maxlength="1000" placeholder="Opcional"></textarea></div>
     <label class="check" id="allowRow" for="f-allow"><input id="f-allow" type="checkbox"> Permitir que os outros desta agenda editem</label>
@@ -275,7 +281,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     }
     return data;
   }
-  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
+  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, remind:(typeof x.remind_minutes==="number"?x.remind_minutes:60), by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
 
   async function refresh(){
     const code=S.code; if(!code) return;
@@ -396,10 +402,12 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     $("f-end").value=ev&&ev.end?ev.end:"10:00";
     $("f-place").value=ev?ev.place:"";
     $("f-notes").value=ev?ev.notes:"";
+    const rm=ev?ev.remind:60, un=rm>0&&rm%1440===0?1440:(rm>0&&rm%60===0?60:1);
+    $("f-remind").value=String(rm/un); $("f-remind-unit").value=String(un);
     $("f-allow").checked=ev?ev.allowEdit:false;
     $("allowRow").classList.toggle("hidden",!mine);
     $("byline").textContent=ev?("Criado por "+nameOf(ev.by)+(ev.editedBy&&!same(ev.editedBy,ev.by)?" · editado por "+nameOf(ev.editedBy):"")+(editable?"":" · Só "+ev.by+" pode editar este compromisso.")):"";
-    ["f-title","f-date","f-allday","f-start","f-end","f-place","f-notes"].forEach(id=>$(id).disabled=!editable);
+    ["f-title","f-date","f-allday","f-start","f-end","f-place","f-notes","f-remind","f-remind-unit"].forEach(id=>$(id).disabled=!editable);
     $("saveBtn").classList.toggle("hidden",!editable);
     $("cancelBtn").textContent=editable?"Cancelar":"Fechar";
     $("formErr").textContent="";
@@ -410,7 +418,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!ev) setTimeout(()=>$("f-title").focus(),30);
   }
   function closeForm(){ $("overlay").classList.add("hidden"); S.editing=null; }
-  function syncAllDay(){ $("timeRow").classList.toggle("hidden",$("f-allday").checked); }
+  function syncAllDay(){ const ad=$("f-allday").checked; $("timeRow").classList.toggle("hidden",ad); $("remindRow").classList.toggle("hidden",ad); }
   const saveErr = e => /sem_permissao/.test(e.message||"") ? "Só quem criou este compromisso pode alterá-lo." : e.badCode ? "O código da agenda mudou. Saia e entre de novo." : "Não foi possível salvar. Verifique a internet e tente de novo.";
 
   $("form").addEventListener("submit", async ev=>{
@@ -419,12 +427,14 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(!title){ $("formErr").textContent="Dê um título ao compromisso."; return; }
     if(!date){ $("formErr").textContent="Escolha uma data."; return; }
     if(!allDay && start && end && end<start){ $("formErr").textContent="O horário de fim é antes do início."; return; }
+    const remind=Math.round((parseFloat($("f-remind").value)||0)*parseInt($("f-remind-unit").value,10));
+    if(!allDay && (remind<0 || remind>10080)){ $("formErr").textContent="O aviso pode ser de no máximo 7 dias antes."; return; }
     $("saveBtn").disabled=true;
     try{
       const row = await rpc("agenda_save",{
         p_id: S.editing?S.editing.id:null, p_title:title, p_date:date, p_all_day:allDay,
         p_start: allDay?null:(start||null), p_end: allDay?null:(end||null),
-        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me, p_allow_edit:$("f-allow").checked
+        p_place:$("f-place").value.trim(), p_notes:$("f-notes").value.trim(), p_author:S.me, p_allow_edit:$("f-allow").checked, p_remind:allDay?0:remind
       });
       if(row && row.id) S.events.set(row.id,toLocal(row));
       S.sel=date; const d=parse(date); S.view=new Date(d.getFullYear(),d.getMonth(),1);
@@ -492,7 +502,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(Notification.permission==="granted"){ notifUI("",false); ensurePush(); }
     else if(Notification.permission==="denied") notifUI("As notificações estão bloqueadas neste celular. Libere em Ajustes → Notificações → Agenda.", false);
     else{
-      notifUI("Receba um aviso quando um compromisso for marcado e 1 hora antes de cada um.", true);
+      notifUI("Receba um aviso quando um compromisso for marcado, antes dele e na hora marcada.", true);
       // O celular só deixa pedir a permissão depois de um toque: pede sozinho no primeiro toque na tela.
       if(!askArmed){ askArmed=true; document.addEventListener("click",function once(ev){ document.removeEventListener("click",once,true); askArmed=false; if(Notification.permission==="default" && !(ev.target&&ev.target.id==="notifBtn")) askPermission(); },true); }
     }
