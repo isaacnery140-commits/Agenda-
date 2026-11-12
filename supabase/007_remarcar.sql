@@ -1,0 +1,2 @@
+-- Remarcar (mudar só dia e horário): qualquer pessoa da agenda pode. Ver função public.agenda_reschedule
+-- (p_code, p_id, p_date, p_start, p_end, p_author): muda data/horário, reprograma os avisos e notifica os outros.

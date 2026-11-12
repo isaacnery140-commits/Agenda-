@@ -619,12 +619,6 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   }
 
   function openResched(e){
-    if(!canEdit(e)){
-      openModal2(el("h3",null,"Remarcar “"+e.title+"”"),
-        el("p",null,"Este compromisso foi marcado por "+e.by+", e só "+e.by+" pode remarcar. Para você também poder, peça que "+e.by+" abra o compromisso e ligue a opção “Permitir que os outros desta agenda editem”."),
-        closeRow());
-      return;
-    }
     const err=el("div",{class:"err",role:"alert"});
     const d=el("input",{id:"m-date",type:"date",value:e.date});
     const t1=el("input",{id:"m-start",type:"time",value:e.start||"09:00"});
@@ -645,9 +639,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       if(!e.allDay && t2.value && t2.value<t1.value){ err.textContent="O horário de fim é antes do início."; return; }
       bSalvar.disabled=true; err.textContent="";
       try{
-        const row=await rpc("agenda_save",{ p_id:e.id, p_title:e.title, p_date:d.value, p_all_day:e.allDay,
-          p_start:e.allDay?null:t1.value, p_end:e.allDay?null:(t2.value||null), p_place:e.place, p_notes:e.notes,
-          p_author:S.me, p_allow_edit:e.allowEdit, p_remind:e.remind });
+        const row=await rpc("agenda_reschedule",{ p_id:e.id, p_date:d.value, p_start:e.allDay?null:t1.value, p_end:e.allDay?null:(t2.value||null), p_author:S.me });
         if(row&&row.id) S.events.set(row.id,toLocal(row));
         S.sel=d.value; const nd=parse(d.value); S.view=new Date(nd.getFullYear(),nd.getMonth(),1);
         closeModal2(); render();
