@@ -59,6 +59,14 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .banner.warn{background:color-mix(in srgb, var(--p1) 18%, var(--surface))}
 .hidden{display:none !important}
 .lock{font-size:11px;color:var(--muted)}
+.evrow{display:flex;gap:8px;align-items:center}
+.evrow .ev{flex:1;min-width:0}
+.evrow input[type=checkbox]{width:24px;height:24px;flex:none;accent-color:var(--p2);cursor:pointer}
+.evrow .mini{flex:none;padding:6px 10px;font-size:13px}
+.evrow.done .ev{opacity:.6}
+.evrow.done .title{text-decoration:line-through}
+.pill.done{text-decoration:line-through;opacity:.55}
+.subhead{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
 .agbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .agchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-weight:500}
 .agchip.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
@@ -281,7 +289,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     }
     return data;
   }
-  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, remind:(typeof x.remind_minutes==="number"?x.remind_minutes:60), by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
+  const toLocal = x => ({ id:x.id, title:x.title, date:x.date, allDay:!!x.all_day, start:x.start_time||"", end:x.end_time||"", place:x.place||"", notes:x.notes||"", allowEdit:!!x.allow_edit, remind:(typeof x.remind_minutes==="number"?x.remind_minutes:60), done:!!x.done_at, doneBy:x.done_by||"", by:x.created_by||"", editedBy:x.edited_by||"", createdAt:Date.parse(x.created_at)||0 });
 
   async function refresh(){
     const code=S.code; if(!code) return;
@@ -351,7 +359,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       const cls=["day"]; if(d.getMonth()!==v.getMonth()) cls.push("out"); if(key===today) cls.push("today"); if(key===S.sel) cls.push("sel");
       const label=d.toLocaleDateString("pt-BR",{day:"numeric",month:"long"})+(evs.length?", "+evs.length+" compromisso"+(evs.length>1?"s":""):"");
       const b=el("button",{class:cls.join(" "),type:"button","aria-label":label,onclick:()=>{ const again=S.sel===key; S.sel=key; render(); if(again||!evs.length) openForm(null,key); }}, el("span",{class:"n"},d.getDate()));
-      evs.slice(0,2).forEach(e=>b.append(el("div",{class:"pill",style:"--c:"+colorOf(e.by)},(e.allDay?"":(e.start||"")+" ")+e.title)));
+      [...evs].sort((x,y)=>(x.done-y.done)||byTime(x,y)).slice(0,2).forEach(e=>b.append(el("div",{class:"pill"+(e.done?" done":""),style:"--c:"+colorOf(e.by)},(e.allDay?"":(e.start||"")+" ")+e.title)));
       if(evs.length>2) b.append(el("div",{class:"more"},"+"+(evs.length-2)+" mais"));
       if(evs.length){ const dots=el("div",{class:"dots"}); evs.slice(0,4).forEach(e=>dots.append(el("span",{class:"dot",style:"background:"+colorOf(e.by)}))); b.append(dots); }
       box.append(b);
@@ -363,8 +371,19 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     else if(e.allDay) t.append("Dia todo");
     else t.append(e.start||"", el("small",null,e.end?"até "+e.end:""));
     const meta=[same(e.by,S.me)?"Você":(e.by||"Alguém")]; if(e.place) meta.unshift(e.place); if(!canEdit(e)) meta.push("só leitura");
-    return el("button",{class:"ev",type:"button",style:"--c:"+colorOf(e.by),onclick:()=>openForm(e)},
+    if(e.done) meta.push("feito"+(e.doneBy?" por "+(same(e.doneBy,S.me)?"você":e.doneBy):""));
+    const main=el("button",{class:"ev",type:"button",style:"--c:"+colorOf(e.by),onclick:()=>openForm(e)},
       t, el("div",null, el("div",{class:"title"},e.title), el("div",{class:"meta"},meta.join(" · "))));
+    const chk=el("input",{type:"checkbox","aria-label":"Marcar “"+e.title+"” como feito"});
+    chk.checked=e.done;
+    chk.addEventListener("change", async ()=>{
+      chk.disabled=true;
+      try{ const row=await rpc("agenda_done",{p_id:e.id,p_done:chk.checked,p_author:S.me}); if(row&&row.id) S.events.set(row.id,toLocal(row)); render(); }
+      catch(err){ chk.checked=!chk.checked; chk.disabled=false; banner("Não foi possível marcar agora. Tente de novo.",true); }
+    });
+    const row=el("div",{class:"evrow"+(e.done?" done":"")},chk,main);
+    if(!showDate && canEdit(e)) row.append(el("button",{class:"btn mini",type:"button",onclick:()=>openResched(e)},"Remarcar"));
+    return row;
   }
   function renderSide(){
     const lbl=parse(S.sel).toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"});
@@ -372,10 +391,12 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     const list=$("dayList"); list.replaceChildren();
     const evs=eventsOn(S.sel);
     if(!evs.length) list.append(el("div",{class:"empty"}, S.loaded?"Nada marcado neste dia.":"Carregando…"));
-    evs.forEach(e=>list.append(evRow(e,false)));
+    const feitos=evs.filter(e=>e.done);
+    evs.filter(e=>!e.done).forEach(e=>list.append(evRow(e,false)));
+    if(feitos.length){ list.append(el("div",{class:"subhead"},"Feitos")); feitos.forEach(e=>list.append(evRow(e,false))); }
     const up=$("upcoming"); up.replaceChildren();
     const today=ymd(new Date());
-    const next=[...S.events.values()].filter(e=>e.date>=today).sort(byTime).slice(0,6);
+    const next=[...S.events.values()].filter(e=>e.date>=today && !e.done).sort(byTime).slice(0,6);
     if(!next.length) up.append(el("div",{class:"empty"},S.loaded?"Nenhum compromisso pela frente.":"Carregando…"));
     next.forEach(e=>up.append(evRow(e,true)));
   }
@@ -595,6 +616,38 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     });
     openModal2(el("h3",null,"Editar nome da agenda"), form);
     setTimeout(()=>{ nome.focus(); nome.select(); },30);
+  }
+
+  function openResched(e){
+    const err=el("div",{class:"err",role:"alert"});
+    const d=el("input",{id:"m-date",type:"date",value:e.date});
+    const t1=el("input",{id:"m-start",type:"time",value:e.start||"09:00"});
+    const t2=el("input",{id:"m-end",type:"time",value:e.end||""});
+    const bSalvar=el("button",{class:"btn primary",type:"submit"},"Remarcar");
+    const form=el("form",{style:"display:flex;flex-direction:column;gap:12px",novalidate:""},
+      el("div",{class:"field"}, el("label",{for:"m-date"},"Nova data"), d),
+      e.allDay?null:el("div",{class:"row"}, el("div",{class:"field"}, el("label",{for:"m-start"},"Início"), t1), el("div",{class:"field"}, el("label",{for:"m-end"},"Fim"), t2)),
+      err,
+      el("div",{class:"actions"}, el("div",{class:"r"}, el("button",{class:"btn",type:"button",onclick:closeModal2},"Cancelar"), bSalvar)));
+    if(!e.allDay) t1.addEventListener("change",()=>{   // mantém a mesma duração
+      if(e.start&&e.end&&t1.value){ const m=x=>{const [h,mi]=x.split(":").map(Number);return h*60+mi;}; const n=Math.min(1439,m(t1.value)+(m(e.end)-m(e.start))); t2.value=pad(Math.floor(n/60))+":"+pad(n%60); }
+    });
+    form.addEventListener("submit", async ev=>{
+      ev.preventDefault();
+      if(!d.value){ err.textContent="Escolha a nova data."; return; }
+      if(!e.allDay && !t1.value){ err.textContent="Escolha o novo horário."; return; }
+      if(!e.allDay && t2.value && t2.value<t1.value){ err.textContent="O horário de fim é antes do início."; return; }
+      bSalvar.disabled=true; err.textContent="";
+      try{
+        const row=await rpc("agenda_save",{ p_id:e.id, p_title:e.title, p_date:d.value, p_all_day:e.allDay,
+          p_start:e.allDay?null:t1.value, p_end:e.allDay?null:(t2.value||null), p_place:e.place, p_notes:e.notes,
+          p_author:S.me, p_allow_edit:e.allowEdit, p_remind:e.remind });
+        if(row&&row.id) S.events.set(row.id,toLocal(row));
+        S.sel=d.value; const nd=parse(d.value); S.view=new Date(nd.getFullYear(),nd.getMonth(),1);
+        closeModal2(); render();
+      }catch(x){ err.textContent=saveErr(x); } finally{ bSalvar.disabled=false; }
+    });
+    openModal2(el("h3",null,"Remarcar “"+e.title+"”"), el("p",null,"Escolha o novo dia"+(e.allDay?"":" e horário")+". Os outros da agenda são avisados e os lembretes são reprogramados."), form);
   }
 
   function openShare(isNew){
