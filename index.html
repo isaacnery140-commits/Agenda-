@@ -382,7 +382,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       catch(err){ chk.checked=!chk.checked; chk.disabled=false; banner("Não foi possível marcar agora. Tente de novo.",true); }
     });
     const row=el("div",{class:"evrow"+(e.done?" done":"")},chk,main);
-    if(!showDate && canEdit(e)) row.append(el("button",{class:"btn mini",type:"button",onclick:()=>openResched(e)},"Remarcar"));
+    row.append(el("button",{class:"btn mini",type:"button",onclick:()=>openResched(e)},"Remarcar"));
     return row;
   }
   function renderSide(){
@@ -619,6 +619,12 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   }
 
   function openResched(e){
+    if(!canEdit(e)){
+      openModal2(el("h3",null,"Remarcar “"+e.title+"”"),
+        el("p",null,"Este compromisso foi marcado por "+e.by+", e só "+e.by+" pode remarcar. Para você também poder, peça que "+e.by+" abra o compromisso e ligue a opção “Permitir que os outros desta agenda editem”."),
+        closeRow());
+      return;
+    }
     const err=el("div",{class:"err",role:"alert"});
     const d=el("input",{id:"m-date",type:"date",value:e.date});
     const t1=el("input",{id:"m-start",type:"time",value:e.start||"09:00"});
