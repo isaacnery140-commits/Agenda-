@@ -201,6 +201,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       </section>
     </aside>
   </div>
+  <p class="byline" id="ver" style="text-align:center;margin:0"></p>
   <button class="btn primary fab" id="fab" type="button">+ Novo</button>
 </div>
 
@@ -243,6 +244,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 <script>
 (function(){
   const CFG = window.AGENDA_CONFIG || {};
+  const APP_VERSION = "13";   // manter igual ao arquivo version.txt
   const $ = id => document.getElementById(id);
   const pad = n => String(n).padStart(2,"0");
   const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -726,6 +728,28 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal2(); });
 
   if(S.code && S.me) start(); else showGate("");
+
+  // Atualização automática: se houver versão mais nova publicada, recarrega sozinho.
+  $("ver").textContent="versão "+APP_VERSION;
+  let lastVerCheck=0;
+  async function checkVersion(){
+    if(Date.now()-lastVerCheck<60000) return; lastVerCheck=Date.now();
+    try{
+      const r=await fetch("version.txt?t="+Date.now(),{cache:"no-store"}); if(!r.ok) return;
+      const v=(await r.text()).trim();
+      const busy=!$("overlay").classList.contains("hidden")||!$("overlay2").classList.contains("hidden");
+      if(v && v!==APP_VERSION && !busy){
+        let tried=null; try{ tried=sessionStorage.getItem("agenda.upd"); }catch(e){}
+        if(tried===v) return;   // já tentou nesta sessão; evita ficar recarregando
+        try{ sessionStorage.setItem("agenda.upd",v); }catch(e){}
+        try{ const reg=await navigator.serviceWorker.getRegistration(); if(reg) await reg.update(); }catch(e){}
+        location.reload();
+      }
+    }catch(e){}
+  }
+  checkVersion();
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") checkVersion(); });
+  setInterval(()=>{ if(document.visibilityState==="visible") checkVersion(); },300000);
 
   if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();
