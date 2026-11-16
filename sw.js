@@ -12,6 +12,7 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return; // API do Supabase passa direto
+  if (url.pathname.includes("/metas/")) return; // app de metas: outro app, não mexe nele
   // rede primeiro, cache se estiver offline
   e.respondWith(
     fetch(e.request, { cache: "no-cache" }).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
