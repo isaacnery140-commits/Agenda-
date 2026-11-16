@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Agenda</title>
-<meta name="theme-color" content="#2d5b8c">
+<meta name="theme-color" content="#f4f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161c" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agenda">
@@ -54,6 +55,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .people{display:flex;gap:8px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dots .dot{width:6px;height:6px}
 
 .banner{padding:10px 14px;border-radius:10px;background:var(--accent-soft);font-size:14px}
 .banner.warn{background:color-mix(in srgb, var(--p1) 18%, var(--surface))}
@@ -102,13 +104,7 @@ header.top{display:flex;align-items:center;justify-content:space-between;gap:12p
 .day.sel{border-color:var(--accent);background:var(--accent-soft)}
 .pill{font-size:11px;line-height:1.3;padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--c);background:color-mix(in srgb, var(--c) 14%, transparent)}
 .more{font-size:11px;color:var(--muted)}
-@media (max-width:520px){
-  .day{min-height:52px;padding:4px;align-items:center}
-  .pill{display:none}
-  .more{display:none}
-  .dots{display:flex !important}
-}
-.dots{display:none;gap:3px;flex-wrap:wrap;justify-content:center}
+.dots{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;min-height:6px}
 
 .side{display:flex;flex-direction:column;gap:16px}
 .side h3{font-family:var(--display);font-weight:500;font-size:18px;margin:0 0 10px;text-wrap:balance}
@@ -143,9 +139,69 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 .gate{min-height:100%;display:grid;place-items:center;padding:24px 16px}
 .gate .modal{animation:none}
 .gate p{margin:0;color:var(--muted);font-size:14px}
-.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:5;border-radius:999px;padding:14px 20px;box-shadow:0 6px 20px rgba(0,0,0,.18);display:none}
-@media (max-width:520px){ #newBtn{display:none} .fab{display:block} .app{padding-bottom:90px} }
-.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:0;font-size:13px}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px 0;font-size:14px}
+
+/* ===== Casca de app de celular: uma coluna, barra de abas embaixo, telas em folha ===== */
+html{-webkit-text-size-adjust:100%}
+body{font-size:16px;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:contain}
+button,input,select,textarea{font-size:16px}          /* 16px evita o zoom automático do iPhone ao digitar */
+.app{max-width:560px;padding:0 0 calc(84px + env(safe-area-inset-bottom));gap:0;min-height:100%}
+header.top{position:sticky;top:0;z-index:4;background:var(--bg);padding:12px 16px 8px;flex-wrap:nowrap}
+.brand{min-width:0}
+.brand h1{font-size:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agbar{flex-wrap:nowrap;overflow-x:auto;padding:4px 16px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.agbar::-webkit-scrollbar{display:none}
+.agchip{flex:none;min-height:40px;padding:8px 16px}
+.views{display:flex;flex-direction:column;gap:12px;padding:4px 16px 0}
+.view{display:flex;flex-direction:column;gap:12px}
+.card{padding:14px}
+.card h3{font-family:var(--display);font-weight:500;font-size:18px;margin:0 0 10px;text-wrap:balance}
+.card .head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.card .head h3{margin:0}
+.btn{min-height:44px;padding:10px 14px;border-radius:12px;white-space:nowrap}
+.cal-head h2{text-transform:none}
+.cal-head h2::first-letter{text-transform:uppercase}
+.check{min-height:44px;white-space:nowrap}
+.check input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+#allowRow{white-space:normal}
+.btn.icon{width:44px;padding:0;font-size:22px;line-height:1}
+.btn.wide{width:100%;margin-top:10px}
+.cal-head{margin-bottom:8px}
+.cal-head h2{font-size:19px;flex:1;text-align:center}
+.weekdays div{font-size:11px}
+.days{gap:2px}
+.day{min-height:50px;padding:5px 0;align-items:center;gap:3px;border-radius:12px}
+.day .n{width:30px;height:30px;font-size:15px}
+.pill,.more{display:none}
+.dots{display:flex}
+.ev{padding:12px 10px;grid-template-columns:46px 1fr;gap:8px;border-radius:12px}
+.ev .title{overflow-wrap:anywhere}
+.evrow input[type=checkbox]{width:28px;height:28px}
+.evrow .mini{min-height:40px;padding:6px 8px;font-size:13px;border-radius:10px}
+.people{margin-bottom:10px}
+.menu{display:flex;flex-direction:column}
+.menuitem{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:50px;padding:8px 2px;background:none;border:0;border-top:1px solid var(--line);text-align:left;width:100%;font-weight:500}
+.menuitem:first-child{border-top:0}
+.menuitem .chev{color:var(--muted);font-size:20px}
+.menuitem.on .tag{color:var(--accent);font-size:13px;font-weight:600}
+.menuitem .tag{color:var(--muted);font-size:13px;font-weight:400}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:1fr 1fr 1fr 76px;align-items:center;
+  max-width:560px;margin:0 auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:52px;justify-content:center;background:none;border:0;color:var(--muted);font-size:12px;font-weight:500;border-radius:12px}
+.tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--accent)}
+.tabadd{justify-self:center;width:56px;height:56px;border-radius:50%;border:0;background:var(--accent);color:var(--surface);font-size:32px;line-height:1;font-weight:400;box-shadow:0 6px 18px rgba(0,0,0,.22);margin-top:-22px}
+
+/* telas de formulário sobem de baixo, como folha */
+.overlay{place-items:end center;padding:0}
+.modal{max-width:560px;border-radius:22px 22px 0 0;border-bottom:0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;max-height:92dvh}
+.modal::before{content:"";width:40px;height:4px;border-radius:2px;background:var(--line);align-self:center;flex:none}
+.field input,.field textarea,.inline input{padding:12px}
+.actions .btn{min-width:96px}
+.gate .modal{border-radius:22px;border-bottom:1px solid var(--line);padding:22px 18px}
+.gate .modal::before{display:none}
+@media (prefers-reduced-motion:no-preference){.overlay .modal{animation:sheet .2s ease-out}@keyframes sheet{from{transform:translateY(40px);opacity:.7}to{transform:none;opacity:1}}}
 </style>
 </head>
 <body>
@@ -166,43 +222,61 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
       <h1 id="agTitle">Agenda</h1>
       <p id="status">Conectando…</p>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <div class="people" id="people"></div>
-      <button class="btn primary" id="newBtn" type="button">+ Novo compromisso</button>
-    </div>
+    <button class="btn" id="todayBtn" type="button">Hoje</button>
   </header>
+  <div class="agbar" id="agbar" aria-label="Suas agendas"></div>
 
-  <div class="agbar" id="agbar"></div>
-  <div class="banner hidden" id="banner"></div>
-  <div class="banner hidden" id="notif" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span id="notifText"></span><button class="btn primary hidden" id="notifBtn" type="button">Ativar notificações</button></div>
+  <main class="views">
+    <div class="banner hidden" id="banner"></div>
+    <div class="banner hidden" id="notif" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap"><span id="notifText"></span><button class="btn primary hidden" id="notifBtn" type="button">Ativar notificações</button></div>
 
-  <div class="grid">
-    <section class="card" aria-label="Calendário">
-      <div class="cal-head">
-        <h2 id="monthLabel"></h2>
-        <div class="nav">
+    <section class="view" id="v-cal">
+      <div class="card" aria-label="Calendário">
+        <div class="cal-head">
           <button class="btn icon" id="prev" type="button" aria-label="Mês anterior">‹</button>
-          <button class="btn" id="todayBtn" type="button">Hoje</button>
+          <h2 id="monthLabel"></h2>
           <button class="btn icon" id="next" type="button" aria-label="Próximo mês">›</button>
         </div>
+        <div class="weekdays"><div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div></div>
+        <div class="days" id="days"></div>
       </div>
-      <div class="weekdays"><div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div></div>
-      <div class="days" id="days"></div>
-    </section>
-
-    <aside class="side">
-      <section class="card">
+      <div class="card">
         <div class="head"><h3 id="dayLabel"></h3><button class="btn" id="addDay" type="button">+ Adicionar</button></div>
         <div class="list" id="dayList"></div>
-      </section>
-      <section class="card">
+      </div>
+    </section>
+
+    <section class="view hidden" id="v-prox">
+      <div class="card">
         <h3>Próximos compromissos</h3>
         <div class="list" id="upcoming"></div>
-      </section>
-    </aside>
-  </div>
-  <p class="byline" id="ver" style="text-align:center;margin:0"></p>
-  <button class="btn primary fab" id="fab" type="button">+ Novo</button>
+      </div>
+    </section>
+
+    <section class="view hidden" id="v-ag">
+      <div class="card">
+        <h3 id="agCardTitle">Esta agenda</h3>
+        <div class="people" id="people"></div>
+        <div class="menu">
+          <button class="menuitem" id="btnShare" type="button"><span>Compartilhar código</span><span class="chev">›</span></button>
+          <button class="menuitem" id="btnRename" type="button"><span>Editar nome</span><span class="chev">›</span></button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Suas agendas</h3>
+        <div class="menu" id="agList"></div>
+        <button class="btn primary wide" id="btnAdd" type="button">+ Nova agenda ou entrar com código</button>
+      </div>
+      <p class="byline" id="ver" style="text-align:center;margin:0"></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Navegação">
+    <button class="tab on" id="tab-cal" type="button" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Calendário</span></button>
+    <button class="tab" id="tab-prox" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4.2" cy="6.5" r="1" fill="currentColor"/><circle cx="4.2" cy="12" r="1" fill="currentColor"/><circle cx="4.2" cy="17.5" r="1" fill="currentColor"/></svg><span>Próximos</span></button>
+    <button class="tab" id="tab-ag" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.4 3-5 6-5s5.4 1.6 6 5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.5 14.6c2.4.2 4 1.6 4.5 4.4"/></svg><span>Agendas</span></button>
+    <button class="tabadd" id="fab" type="button" aria-label="Novo compromisso">+</button>
+  </nav>
 </div>
 
 <div class="overlay hidden" id="overlay">
@@ -244,7 +318,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 <script>
 (function(){
   const CFG = window.AGENDA_CONFIG || {};
-  const APP_VERSION = "13";   // manter igual ao arquivo version.txt
+  const APP_VERSION = "14";   // manter igual ao arquivo version.txt
   const $ = id => document.getElementById(id);
   const pad = n => String(n).padStart(2,"0");
   const ymd = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -369,7 +443,7 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   }
   function evRow(e, showDate){
     const t=el("div",{class:"t"});
-    if(showDate){ t.append(parse(e.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}).replace(".","")); t.append(el("small",null,e.allDay?"Dia todo":(e.start||""))); }
+    if(showDate){ t.append(parse(e.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})); t.append(el("small",null,e.allDay?"Dia todo":(e.start||""))); }
     else if(e.allDay) t.append("Dia todo");
     else t.append(e.start||"", el("small",null,e.end?"até "+e.end:""));
     const meta=[same(e.by,S.me)?"Você":(e.by||"Alguém")]; if(e.place) meta.unshift(e.place); if(!canEdit(e)) meta.push("só leitura");
@@ -398,17 +472,31 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
     if(feitos.length){ list.append(el("div",{class:"subhead"},"Feitos")); feitos.forEach(e=>list.append(evRow(e,false))); }
     const up=$("upcoming"); up.replaceChildren();
     const today=ymd(new Date());
-    const next=[...S.events.values()].filter(e=>e.date>=today && !e.done).sort(byTime).slice(0,6);
+    const next=[...S.events.values()].filter(e=>e.date>=today && !e.done).sort(byTime).slice(0,40);
     if(!next.length) up.append(el("div",{class:"empty"},S.loaded?"Nenhum compromisso pela frente.":"Carregando…"));
     next.forEach(e=>up.append(evRow(e,true)));
   }
   function renderAgendas(){
     const a=cur(); $("agTitle").textContent=a?a.name:"Agenda"; document.title=a?a.name:"Agenda";
+    $("agCardTitle").textContent=a?a.name:"Esta agenda";
     const box=$("agbar"); box.replaceChildren();
-    for(const g of S.agendas) box.append(el("button",{class:"agchip"+(g.code===S.code?" on":""),type:"button","aria-pressed":g.code===S.code?"true":"false",onclick:()=>switchAgenda(g.code)},g.name));
-    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openAdd},"+ Agenda"));
-    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openRename},"Editar nome"));
-    box.append(el("button",{class:"agchip ghost",type:"button",onclick:openShare},"Compartilhar"));
+    box.classList.toggle("hidden",S.agendas.length<2);
+    const list=$("agList"); list.replaceChildren();
+    for(const g of S.agendas){
+      const on=g.code===S.code;
+      const chip=el("button",{class:"agchip"+(on?" on":""),type:"button","aria-pressed":on?"true":"false",onclick:()=>switchAgenda(g.code)},g.name);
+      box.append(chip);
+      list.append(el("button",{class:"menuitem"+(on?" on":""),type:"button",onclick:()=>{ switchAgenda(g.code); setTab("cal"); }}, el("span",null,g.name), el("span",{class:"tag"},on?"aberta":"abrir")));
+    }
+    const act=box.querySelector(".on"); if(act&&act.scrollIntoView) try{ act.scrollIntoView({block:"nearest",inline:"center"}); }catch(e){}
+  }
+  function setTab(t){
+    for(const k of ["cal","prox","ag"]){
+      $("v-"+k).classList.toggle("hidden",k!==t);
+      $("tab-"+k).classList.toggle("on",k===t);
+      if(k===t) $("tab-"+k).setAttribute("aria-current","page"); else $("tab-"+k).removeAttribute("aria-current");
+    }
+    window.scrollTo(0,0);
   }
   function render(){ renderAgendas(); renderPeople(); renderMonth(); renderSide(); }
   function banner(msg,warn){ const b=$("banner"); if(!msg){b.classList.add("hidden");return;} b.textContent=msg; b.classList.toggle("warn",!!warn); b.classList.remove("hidden"); }
@@ -479,12 +567,17 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
   document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("overlay").classList.contains("hidden")) closeForm(); });
   $("f-allday").addEventListener("change",syncAllDay);
   $("f-start").addEventListener("change",()=>{ const s=$("f-start").value, en=$("f-end").value; if(s&&(!en||en<=s)){ const [h,m]=s.split(":").map(Number); $("f-end").value=pad(Math.min(23,h+1))+":"+pad(m); } });
-  $("newBtn").addEventListener("click",()=>openForm(null,S.sel));
   $("fab").addEventListener("click",()=>openForm(null,S.sel));
+  $("tab-cal").addEventListener("click",()=>setTab("cal"));
+  $("tab-prox").addEventListener("click",()=>setTab("prox"));
+  $("tab-ag").addEventListener("click",()=>setTab("ag"));
+  $("btnShare").addEventListener("click",()=>openShare());
+  $("btnRename").addEventListener("click",()=>openRename());
+  $("btnAdd").addEventListener("click",()=>openAdd());
   $("addDay").addEventListener("click",()=>openForm(null,S.sel));
   $("prev").addEventListener("click",()=>{ S.view=new Date(S.view.getFullYear(),S.view.getMonth()-1,1); renderMonth(); });
   $("next").addEventListener("click",()=>{ S.view=new Date(S.view.getFullYear(),S.view.getMonth()+1,1); renderMonth(); });
-  $("todayBtn").addEventListener("click",()=>{ const t=new Date(); S.view=new Date(t.getFullYear(),t.getMonth(),1); S.sel=ymd(t); render(); });
+  $("todayBtn").addEventListener("click",()=>{ setTab("cal"); const t=new Date(); S.view=new Date(t.getFullYear(),t.getMonth(),1); S.sel=ymd(t); render(); });
 
   // ---------- notificações ----------
   const pushOK = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;

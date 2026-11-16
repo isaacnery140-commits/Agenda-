@@ -2,6 +2,8 @@
 
 Agendas compartilhadas, feitas para usar no celular. Cada agenda tem um código próprio: só quem recebe o código vê aquela agenda, e uma pessoa pode participar de várias. Abre direto no navegador, sem conta e sem login: cada pessoa digita o código da agenda e o próprio nome uma vez, e o celular lembra.
 
+Tela pensada só para celular: uma coluna, abas embaixo (Calendário, Próximos, Agendas) e formulários que sobem de baixo.
+
 ## Como usar no celular
 
 1. Abra o link do app (GitHub Pages) no celular.
