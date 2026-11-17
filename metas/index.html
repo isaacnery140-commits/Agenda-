@@ -167,6 +167,12 @@ details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14p
 .seg button{border:0;background:transparent;border-radius:999px;padding:8px 11px;font:600 13px var(--body);white-space:nowrap}
 .seg button.on{background:var(--accent);color:var(--on-accent)}
 .count{font-size:13px;color:var(--muted)}
+.search{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 6px 0 12px}
+.search:focus-within{border-color:var(--accent);outline:2px solid var(--accent-soft)}
+.search input{flex:1;border:0;background:transparent;padding:12px 0;font-size:16px;min-width:0;outline:none}
+.search input::-webkit-search-cancel-button{display:none}
+.sale .tel{font-weight:500;font-size:13px;color:var(--accent);white-space:nowrap}
+@media (max-width:480px){.cli-tel{grid-template-columns:1fr}}
 .linkbtn{border:0;background:none;color:var(--accent);font:600 14px var(--body);padding:6px 4px}
 .sale{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:start;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:12px 12px 12px 14px;text-align:left;width:100%}
 .sale .open{all:unset;cursor:pointer;display:grid;gap:3px;min-width:0;grid-column:1}
@@ -232,7 +238,7 @@ const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agos
 const SLUG=["janeiro","fevereiro","marco","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const DEF={ano:2026,metaAno:200,metaSemestre:{1:100,2:100},metaMes:{},comissaoPaga:{},meta1:100,meta2:200,valor1:0,valor2:0};
 let vendas=[],cfg={...DEF},pollTimer=null,busy=0,pendingRender=false,editing=null;
-let filt={ent:"todos",pag:"todos"},selMode=false;const sel=new Set();
+let filt={ent:"todos",pag:"todos"},selMode=false,busca="",listCtx=null;const sel=new Set();
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const brl=n=>(Number(n)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -268,6 +274,13 @@ const resumo=m=>somar(doMes(m));
 const doAno=()=>vendas.filter(v=>v.ano===cfg.ano).sort((a,b)=>(a.data||"").localeCompare(b.data||"")||(a.ordem||0)-(b.ordem||0));
 const passa=v=>(filt.ent==="todos"||(filt.ent==="sim")===!!v.entregue)&&(filt.pag==="todos"||(filt.pag==="sim")===!!v.pago);
 const filtroAtivo=()=>filt.ent!=="todos"||filt.pag!=="todos";
+const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function fmtTel(t){const d=String(t||"").replace(/\D/g,"");if(d.length===11)return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;if(d.length===10)return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;return String(t||"")}
+function passaBusca(v){const q=norm(busca).trim();if(!q)return true;
+  if(norm(v.cliente).includes(q))return true;
+  const[y,m,d]=(v.data||"").split("-");if(`${d}/${m}/${y}`.includes(q)||(v.data||"").includes(q))return true;
+  const dig=q.replace(/\D/g,"");if(dig.length>=3&&String(v.telefone||"").replace(/\D/g,"").includes(dig))return true;
+  return false}
 // bônus: máquinas entre a Meta 1 e a Meta 2 valem valor1 cada; acima da Meta 2 valem valor2 cada
 function bonus(total){const m1=cfg.meta1||0,m2=Math.max(cfg.meta2||0,m1);const n1=Math.max(0,Math.min(total,m2)-m1),n2=Math.max(0,total-m2);
   const b1=n1*(cfg.valor1||0),b2=n2*(cfg.valor2||0);return{m1,m2,n1,n2,b1,b2,tot:b1+b2}}
@@ -321,7 +334,7 @@ function renderNav(){const r=route();
 }
 function render(){
   if(!pollTimer)return;
-  const ae=document.activeElement;if(ae&&ae.closest&&ae.closest("#main input")){pendingRender=true;return}
+  const ae=document.activeElement;if(ae&&ae.closest&&ae.closest("#main input")){pendingRender=true;if(ae.id==="busca")atualizaLista();return}
   pendingRender=false;$("#anoTit").textContent=cfg.ano;renderNav();
   const ids=new Set(vendas.map(v=>v.id));[...sel].forEach(id=>{if(!ids.has(id))sel.delete(id)});
   const r=route();$("#main").innerHTML=r==="metas"?viewMetas():r==="todas"?viewTodas():r?viewMes(r):viewGeral();
@@ -373,16 +386,17 @@ function viewGeral(){
 
 function seg(k,lbl,ops){return `<div class="seg" role="group" aria-label="${lbl}"><span>${lbl}</span>${ops.map(([v,t])=>`<button type="button" data-fil="${k}:${v}" class="${filt[k]===v?"on":""}" aria-pressed="${filt[k]===v}">${t}</button>`).join("")}</div>`}
 function toolbar(n,shown){if(!n)return"";return `<div class="toolbar">
+  <div class="search"><input id="busca" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar por nome, data (17/11) ou telefone" value="${esc(busca)}" aria-label="Buscar por nome, data ou telefone">${busca?`<button type="button" class="linkbtn" data-busca="limpar" aria-label="Limpar busca">✕</button>`:""}</div>
   ${seg("ent","Entrega",[["todos","Todas"],["sim","Entregues"],["nao","A entregar"]])}
   ${seg("pag","1ª parcela",[["todos","Todas"],["sim","Pagas"],["nao","Não pagas"]])}
-  <div class="toolrow"><span class="count">Mostrando ${shown} de ${n} venda${n===1?"":"s"}${filtroAtivo()?` · <button class="linkbtn" data-fil="limpar" type="button">limpar filtros</button>`:""}</span>
+  <div class="toolrow"><span class="count" id="cnt">${contagem(n,shown)}</span>
     ${selMode?`<button class="linkbtn" data-sel="todas" type="button">Selecionar todas mostradas</button>`:`<button class="btn ghost" data-sel="ini" type="button" style="min-height:38px;padding:6px 12px;font-size:14px">☑ Selecionar várias</button>`}</div>
 </div>`}
 function cartao(v,mostraMes){const who=v.editedBy||v.createdBy;const extra=[v.produto,v.preco?brl(v.preco):""].filter(Boolean).join(" · ");const s=sel.has(v.id);
   const rm=resumoMaq(v);
   return `<div class="sale ${v.entregue?"ok":"pend"} ${selMode?"selmode":""} ${s?"sel":""}" data-id="${esc(v.id)}" ${selMode?`role="checkbox" aria-checked="${s}" tabindex="0"`:""}>
     <button class="open" type="button" data-open ${selMode?'tabindex="-1"':""}>
-      <span class="cli">${selMode?`<span class="selbox" aria-hidden="true">${s?"✓":""}</span> `:""}${esc(v.cliente)||"<i style='color:var(--muted)'>Sem nome</i>"}</span>
+      <span class="cli">${selMode?`<span class="selbox" aria-hidden="true">${s?"✓":""}</span> `:""}${esc(v.cliente)||"<i style='color:var(--muted)'>Sem nome</i>"}${v.telefone?` <span class="tel">📞 ${esc(fmtTel(v.telefone))}</span>`:""}</span>
       <span class="meta">${fmtD(v.data)}${mostraMes?"/"+String(v.ano).slice(2):""}${extra?" · "+esc(extra):""}${who?` · por ${esc(who)}`:""}</span>
     </button>
     <span class="qtd">${v.quantidade}<small>${v.quantidade===1?"máquina":"máquinas"}</small></span>
@@ -392,8 +406,14 @@ function cartao(v,mostraMes){const who=v.editedBy||v.createdBy;const extra=[v.pr
       <button class="act maq ${rm.startsWith("Galga")||rm.includes("· Galga")?"":"vazio"}" type="button" data-maq>${esc(rm)}</button>
     </div>
   </div>`}
-function lista(l,vazio,mostraMes){const lf=l.filter(passa);
-  return `${toolbar(l.length,lf.length)}<div class="list">${lf.length?lf.map(v=>cartao(v,mostraMes)).join(""):`<div class="card empty">${l.length?"Nenhuma venda com esses filtros.":vazio}</div>`}</div>`}
+function contagem(n,shown){return `Mostrando ${shown} de ${n} venda${n===1?"":"s"}${filtroAtivo()||busca?` · <button class="linkbtn" data-fil="limpar" type="button">limpar filtros</button>`:""}`}
+function listaHTML(){const{l,vazio,mostraMes}=listCtx;const lf=l.filter(v=>passa(v)&&passaBusca(v));
+  return{n:l.length,shown:lf.length,html:lf.length?lf.map(v=>cartao(v,mostraMes)).join(""):`<div class="card empty">${l.length?(busca?`Nada encontrado para “${esc(busca)}”.`:"Nenhuma venda com esses filtros."):vazio}</div>`}}
+function lista(l,vazio,mostraMes){listCtx={l,vazio,mostraMes};const r=listaHTML();
+  return `${toolbar(r.n,r.shown)}<div class="list" id="lst">${r.html}</div>`}
+function atualizaLista(){if(!listCtx||!$("#lst"))return;const r=listaHTML();$("#lst").innerHTML=r.html;const c=$("#cnt");if(c)c.innerHTML=contagem(r.n,r.shown)}
+document.addEventListener("input",e=>{if(e.target.id==="busca"){busca=e.target.value;atualizaLista();
+  const s=e.target.parentElement;const x=s.querySelector("[data-busca]");if(busca&&!x)s.insertAdjacentHTML("beforeend",`<button type="button" class="linkbtn" data-busca="limpar" aria-label="Limpar busca">✕</button>`);if(!busca&&x)x.remove()}});
 
 function viewMes(m){
   const r=resumo(m),mm=metaMes(m),ok=r.q>=mm;const paga=!!cfg.comissaoPaga[m];
@@ -482,7 +502,8 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("#m
 document.addEventListener("click",e=>{
   if(!pollTimer)return;
   const q=e.target.closest("[data-quick]");if(q){const[k,v]=q.dataset.quick.split(":");filt={ent:"todos",pag:"todos",[k]:v};return}
-  const fl=e.target.closest("[data-fil]");if(fl){const val=fl.dataset.fil;if(val==="limpar")filt={ent:"todos",pag:"todos"};else{const[k,v]=val.split(":");filt[k]=v}sel.clear();render();return}
+  const lb=e.target.closest("[data-busca]");if(lb){busca="";render();$("#busca")?.focus();return}
+  const fl=e.target.closest("[data-fil]");if(fl){const val=fl.dataset.fil;if(val==="limpar"){filt={ent:"todos",pag:"todos"};busca=""}else{const[k,v]=val.split(":");filt[k]=v}sel.clear();render();return}
   const sb=e.target.closest("[data-sel]");if(sb){const a=sb.dataset.sel;if(a==="ini"){selMode=true;sel.clear()}else if(a==="fim"){selMode=false;sel.clear()}else if(a==="todas"){document.querySelectorAll("#main .sale").forEach(el=>sel.add(el.dataset.id))}render();return}
   const bk=e.target.closest("[data-bulk]");if(bk){if(!bk.disabled)bulkApply(bk.dataset.bulk);return}
   const card=e.target.closest(".sale");if(card){const v=vendas.find(x=>x.id===card.dataset.id);if(!v)return;
@@ -509,7 +530,8 @@ function openSheet(v,mes,focoMaq){
   ov.innerHTML=`<form class="sheet" novalidate role="dialog" aria-label="${nova?"Nova venda":"Editar venda"}">
     <div class="grab"></div>
     <h3>${nova?"Nova venda":"Editar venda"}</h3>
-    <div class="field"><label for="f-cli">Cliente</label><input id="f-cli" maxlength="80" value="${esc(v.cliente)}" placeholder="Nome do cliente" autocomplete="off"></div>
+    <div class="row2 cli-tel"><div class="field"><label for="f-cli">Cliente</label><input id="f-cli" maxlength="80" value="${esc(v.cliente)}" placeholder="Nome do cliente" autocomplete="off"></div>
+    <div class="field"><label for="f-tel">Telefone de contato</label><input id="f-tel" type="tel" inputmode="tel" maxlength="30" value="${esc(fmtTel(v.telefone))}" placeholder="(11) 98765-4321" autocomplete="off"></div></div>
     <div class="row2">
       <div class="field"><label for="f-data">Data</label><input id="f-data" type="date" value="${esc(v.data)}"></div>
       <div class="field"><label for="f-q">Quantidade</label><div class="stepper"><button type="button" data-step="-1" aria-label="Menos uma">−</button><input id="f-q" type="number" inputmode="numeric" min="0" value="${v.quantidade}"><button type="button" data-step="1" aria-label="Mais uma">+</button></div></div>
@@ -545,6 +567,9 @@ function openSheet(v,mes,focoMaq){
       <div class="field"><label for="s-${i}">Nº série</label><input id="s-${i}" data-mf="serie" maxlength="40" value="${esc(x.serie)}" placeholder="—"></div></div>`).join("")};
   drawMaq();f.querySelector("#f-q").addEventListener("input",drawMaq);
   f.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{const q=f.querySelector("#f-q");q.value=Math.max(0,(+q.value||0)+Number(b.dataset.step));drawMaq()});
+  f.querySelector("#f-cli").addEventListener("change",()=>{const t=f.querySelector("#f-tel");if(t.value.trim())return;const n=norm(f.querySelector("#f-cli").value).trim();if(!n)return;
+    const ant=vendas.filter(x=>x.telefone&&norm(x.cliente).trim()===n).sort((a,b)=>(b.data||"").localeCompare(a.data||""))[0];if(ant)t.value=fmtTel(ant.telefone)});
+  f.querySelector("#f-tel").addEventListener("blur",e=>{e.target.value=fmtTel(e.target.value)});
   if(focoMaq)setTimeout(()=>{const g=f.querySelector("#g-0");g&&g.scrollIntoView({block:"center"});g&&g.focus()},80);
   const te=f.querySelector("#f-ent");te.onclick=()=>{
     if(!editing.entregue&&!editing.pago){f.querySelector("#f-err").textContent=nova?"Salve a venda e depois toque em “A entregar” no cartão para registrar a 1ª parcela e a entrega.":"Para marcar como entregue, a 1ª parcela precisa estar paga. Feche e toque em “A entregar” no cartão.";return}
@@ -562,7 +587,7 @@ function openSheet(v,mes,focoMaq){
     if(!(q>=0)){err.textContent="Quantidade inválida.";return}
     const pv=f.querySelector("#f-preco").value,cv=f.querySelector("#f-com").value;
     lerMaq();const nq=Math.max(1,q);const maquinas=maqVals.slice(0,Math.max(nq,(v.maquinas||[]).length>nq?nq:nq)).map(x=>({galga:(x.galga||"").slice(0,20),serie:(x.serie||"").slice(0,40)}));
-    const body={data,cliente:cli,quantidade:q,entregue:editing.entregue,maquinas,produto:f.querySelector("#f-prod").value.trim(),preco:pv===""?null:Number(pv),comissao:cv===""?null:Number(cv)};
+    const body={data,cliente:cli,telefone:f.querySelector("#f-tel").value.trim(),quantidade:q,entregue:editing.entregue,maquinas,produto:f.querySelector("#f-prod").value.trim(),preco:pv===""?null:Number(pv),comissao:cv===""?null:Number(cv)};
     const sb=f.querySelector("#f-save");sb.disabled=true;err.textContent="";
     try{const id=editing.id||(crypto.randomUUID?crypto.randomUUID():null);
       const row=normV(await rpc("metas_save",{p_id:id,p_data:body,p_author:ME}));
