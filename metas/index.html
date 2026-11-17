@@ -288,12 +288,12 @@ function passaBusca(v){const q=norm(busca).trim();if(!q)return true;
   const dig=q.replace(/\D/g,"");if(dig.length>=3&&String(v.telefone||"").replace(/\D/g,"").includes(dig))return true;
   return false}
 // bônus: máquinas entre a Meta 1 e a Meta 2 valem valor1 cada; acima da Meta 2 valem valor2 cada
-// bônus: batendo a Meta 1 ganha o prêmio da Meta 1; batendo a Meta 2 ganha o prêmio da Meta 2 (no lugar do da Meta 1)
+// bônus: tudo somado. Batendo a Meta 1 ganha o prêmio da Meta 1; batendo a Meta 2 soma também o prêmio da Meta 2;
 // e cada máquina acima da Meta 2 soma o valor extra. O total é dividido pelo número de funcionários.
 function bonus(total){const m1=cfg.meta1||0,m2=Math.max(cfg.meta2||0,m1),v1=cfg.valor1||0,v2=cfg.valor2||0,vx=cfg.valorExtra||0,f=Math.max(1,Math.round(cfg.funcionarios||1));
-  let nivel=0,base=0;if(total>=m2){nivel=2;base=v2}else if(total>=m1){nivel=1;base=v1}
+  let nivel=total>=m2?2:total>=m1?1:0;const p1=nivel>=1?v1:0,p2=nivel>=2?v2:0,base=p1+p2;
   const n=nivel===2?total-m2:0,extra=n*vx,tot=base+extra;
-  return{m1,m2,v1,v2,vx,f,nivel,base,n,extra,tot,porPessoa:tot/f,falta:nivel===0?m1-total:nivel===1?m2-total:0}}
+  return{m1,m2,v1,v2,vx,f,nivel,p1,p2,base,n,extra,tot,porPessoa:tot/f,falta:nivel===0?m1-total:nivel===1?m2-total:0}}
 const listaMaq=v=>{const q=Math.max(1,Math.floor(+v.quantidade||0));const a=Array.isArray(v.maquinas)?v.maquinas:[];const um=a.length===1?(a[0].galga||""):"";return Array.from({length:q},(_,i)=>({galga:um,serie:"",...(a[i]||{})}))};
 function resumoMaq(v){const g=listaMaq(v).map(x=>(x.galga||"").trim());const n=g.length;
   if(g[0]&&g.every(x=>x===g[0]))return `${n>1?n+" máq. · ":""}Galga ${g[0]}`;
@@ -485,13 +485,14 @@ function viewMetas(){
     const din=(id,k,label)=>`<div class="field"><label for="${id}">${label}</label><input id="${id}" type="number" inputmode="decimal" step="0.01" min="0" data-cfgv="${k}" value="${cfg[k]||0}"></div>`;
     return `<section class="card bonus">
     <h2>Bônus de metas</h2>
-    <p class="sub">Batendo a Meta 1, o prêmio é o da Meta 1. Batendo a Meta 2, o prêmio passa a ser o da Meta 2, e cada máquina vendida acima dela soma o valor extra. O total é dividido entre os funcionários. Toque fora do campo para salvar.</p>
+    <p class="sub">Tudo é somado: o prêmio da Meta 1, mais o prêmio da Meta 2, mais o valor extra por máquina vendida acima da Meta 2. O total é dividido entre os funcionários. Toque fora do campo para salvar.</p>
     <div class="row2">${inp("b-m1","data-cfg=\"meta1\"",cfg.meta1,"Meta 1 (máquinas)")}${din("b-v1","valor1","Prêmio da Meta 1 (R$)")}</div>
     <div class="row2" style="margin-top:10px">${inp("b-m2","data-cfg=\"meta2\"",cfg.meta2,"Meta 2 (máquinas)")}${din("b-v2","valor2","Prêmio da Meta 2 (R$)")}</div>
     <div class="row2" style="margin-top:10px">${din("b-vx","valorExtra","R$ por máquina acima da Meta 2")}${inp("b-f","data-cfg=\"funcionarios\"",Math.max(1,Math.round(cfg.funcionarios||1)),"Nº de funcionários")}</div>
     <div style="margin-top:12px">
       <div class="ln"><span>${total} máquinas vendidas · ${bn.nivel===2?"Meta 2 batida":bn.nivel===1?`Meta 1 batida · faltam ${bn.falta} para a Meta 2`:`faltam ${bn.falta} para a Meta 1`}</span><span></span></div>
-      <div class="ln"><span>Prêmio ${bn.nivel===2?`da Meta 2 (${bn.m2} máq.)`:bn.nivel===1?`da Meta 1 (${bn.m1} máq.)`:"(meta ainda não batida)"}</span><span>${brl(bn.base)}</span></div>
+      <div class="ln"><span>Prêmio da Meta 1 (${bn.m1} máq.)${bn.nivel>=1?" ✓":" · ainda não batida"}</span><span>${brl(bn.p1)}</span></div>
+      <div class="ln"><span>Prêmio da Meta 2 (${bn.m2} máq.)${bn.nivel>=2?" ✓":" · ainda não batida"}</span><span>${brl(bn.p2)}</span></div>
       <div class="ln"><span>Acima da Meta 2: <b>${bn.n}</b> máq. × ${brl(bn.vx)}</span><span>${brl(bn.extra)}</span></div>
       <div class="ln"><span>Total do bônus</span><span>${brl(bn.tot)}</span></div>
       <div class="ln"><span>Para cada funcionário (${bn.f})</span><span>${brl(bn.porPessoa)}</span></div>
@@ -708,7 +709,7 @@ function openEntrega(v,modo){
 }
 
 // ---- atualização automática: quando sai versão nova no GitHub, o app recarrega sozinho ----
-const VERSAO="202611171926";
+const VERSAO="202611171941";
 async function checaVersao(){
   try{const v=(await fetch("versao.txt?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"")).trim();
     if(v&&v!==VERSAO&&!editing&&!busy){location.replace(location.pathname+"?v="+encodeURIComponent(v)+location.hash)}}catch(e){}
