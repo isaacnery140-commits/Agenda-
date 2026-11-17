@@ -681,6 +681,16 @@ function openEntrega(v,modo){
   draw();setTimeout(()=>ov.querySelector("[data-e]")?.focus(),60);
 }
 
+// ---- atualização automática: quando sai versão nova no GitHub, o app recarrega sozinho ----
+const VERSAO="202611171848";
+async function checaVersao(){
+  try{const v=(await fetch("versao.txt?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"")).trim();
+    if(v&&v!==VERSAO&&!editing&&!busy){location.replace(location.pathname+"?v="+encodeURIComponent(v)+location.hash)}}catch(e){}
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)checaVersao()});
+setInterval(()=>{if(!document.hidden)checaVersao()},120000);
+setTimeout(checaVersao,1500);
+
 $("#outBtn").addEventListener("click",()=>{store.del("metas.code");CODE="";vendas=[];showLogin("")});
 $("#shareBtn").addEventListener("click",()=>{
   const url=location.href.split("#")[0];const txt=`Vendas de Máquinas\nAbra: ${url}\nDigite seu nome e o código: ${CODE}`;
