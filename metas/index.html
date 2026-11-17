@@ -172,7 +172,8 @@ details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:14p
 .search input{flex:1;border:0;background:transparent;padding:12px 0;font-size:16px;min-width:0;outline:none}
 .search input::-webkit-search-cancel-button{display:none}
 .sale .tel{font-weight:500;font-size:13px;color:var(--accent);white-space:nowrap}
-@media (max-width:480px){.cli-tel{grid-template-columns:1fr}}
+.cli-tel{grid-template-columns:1.25fr 1fr}
+.sale .tel.vazio{color:var(--muted);font-weight:400}
 .linkbtn{border:0;background:none;color:var(--accent);font:600 14px var(--body);padding:6px 4px}
 .sale{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:start;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:12px 12px 12px 14px;text-align:left;width:100%}
 .sale .open{all:unset;cursor:pointer;display:grid;gap:3px;min-width:0;grid-column:1}
@@ -206,6 +207,8 @@ body.selmode-on main{padding-bottom:240px}
 .comp a{color:var(--accent);font-weight:600;word-break:break-all}
 .aviso{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:14px;margin:0}
 .maqs{display:grid;gap:8px}
+.chk{display:flex!important;align-items:center;gap:8px;font-size:14px!important;color:var(--ink)!important;font-weight:500!important;margin-top:6px;cursor:pointer}
+.chk input{width:20px!important;height:20px;min-height:0!important;accent-color:var(--accent)}
 .maqrow{display:grid;grid-template-columns:28px 1fr 1fr;gap:8px;align-items:end}
 .maqrow b{font:700 14px var(--display);padding-bottom:12px;color:var(--muted)}
 .bonus .ln{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
@@ -236,7 +239,7 @@ body.selmode-on main{padding-bottom:240px}
 const CFG=window.METAS_CONFIG||{};
 const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const SLUG=["janeiro","fevereiro","marco","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
-const DEF={ano:2026,metaAno:200,metaSemestre:{1:100,2:100},metaMes:{},comissaoPaga:{},meta1:100,meta2:200,valor1:0,valor2:0};
+const DEF={ano:2026,metaAno:200,metaSemestre:{1:100,2:100},metaMes:{},comissaoPaga:{},meta1:100,meta2:200,valor1:0,valor2:0,valorExtra:0,funcionarios:1};
 let vendas=[],cfg={...DEF},pollTimer=null,busy=0,pendingRender=false,editing=null;
 let filt={ent:"todos",pag:"todos"},selMode=false,busca="",listCtx=null;const sel=new Set();
 const $=s=>document.querySelector(s);
@@ -262,16 +265,19 @@ async function rpc(fn,args){
   return data;
 }
 const normV=v=>({...v,quantidade:+v.quantidade||0,preco:v.preco==null?null:+v.preco,comissao:v.comissao==null?null:+v.comissao,parcelaValor:v.parcelaValor==null?null:+v.parcelaValor,pago:!!v.pago,maquinas:Array.isArray(v.maquinas)?v.maquinas:[]});
-function applyCfg(c){cfg={...DEF,...(c||{})};["meta1","meta2","valor1","valor2"].forEach(k=>cfg[k]=Number(cfg[k])||0);cfg.metaSemestre={...DEF.metaSemestre,...(cfg.metaSemestre||{})};cfg.metaMes={...(cfg.metaMes||{})};cfg.comissaoPaga={...(cfg.comissaoPaga||{})}}
+function applyCfg(c){cfg={...DEF,...(c||{})};["meta1","meta2","valor1","valor2","valorExtra","funcionarios"].forEach(k=>cfg[k]=Number(cfg[k])||0);cfg.metaSemestre={...DEF.metaSemestre,...(cfg.metaSemestre||{})};cfg.metaMes={...(cfg.metaMes||{})};cfg.comissaoPaga={...(cfg.comissaoPaga||{})}}
 async function load(){const d=await rpc("metas_list");applyCfg(d&&d.config);vendas=(d&&d.vendas||[]).map(normV)}
 
 // ---- metas por período ----
 const metaMes=m=>{const v=Number(cfg.metaMes[m]);return v>0?v:Math.round(cfg.metaAno/12)};
 const metaSem=s=>{const v=Number(cfg.metaSemestre[s]);return v>0?v:Math.round(cfg.metaAno/2)};
-const doMes=m=>vendas.filter(v=>v.mes===m&&v.ano===cfg.ano).sort((a,b)=>(a.data||"").localeCompare(b.data||"")||(a.ordem||0)-(b.ordem||0));
+// novas vendas primeiro: as lançadas no app (ordem = hora do lançamento) na frente, mais recentes antes; depois as demais por data, da mais nova para a mais antiga
+const lancada=v=>(v.ordem||0)>1e12?v.ordem:0;
+const ordenar=(a,b)=>lancada(b)-lancada(a)||(b.data||"").localeCompare(a.data||"")||(b.ordem||0)-(a.ordem||0);
+const doMes=m=>vendas.filter(v=>v.mes===m&&v.ano===cfg.ano).sort(ordenar);
 function somar(l){let q=0,qe=0,tot=0,com=0,pg=0,ent=0;for(const v of l){q+=v.quantidade;if(v.entregue){qe+=v.quantidade;ent++}if(v.pago)pg++;const t=(+v.preco||0)*v.quantidade;tot+=t;com+=t*(+v.comissao||0)/100}return{l,n:l.length,q,qe,tot,com,pg,ent}}
 const resumo=m=>somar(doMes(m));
-const doAno=()=>vendas.filter(v=>v.ano===cfg.ano).sort((a,b)=>(a.data||"").localeCompare(b.data||"")||(a.ordem||0)-(b.ordem||0));
+const doAno=()=>vendas.filter(v=>v.ano===cfg.ano).sort(ordenar);
 const passa=v=>(filt.ent==="todos"||(filt.ent==="sim")===!!v.entregue)&&(filt.pag==="todos"||(filt.pag==="sim")===!!v.pago);
 const filtroAtivo=()=>filt.ent!=="todos"||filt.pag!=="todos";
 const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
@@ -282,10 +288,15 @@ function passaBusca(v){const q=norm(busca).trim();if(!q)return true;
   const dig=q.replace(/\D/g,"");if(dig.length>=3&&String(v.telefone||"").replace(/\D/g,"").includes(dig))return true;
   return false}
 // bônus: máquinas entre a Meta 1 e a Meta 2 valem valor1 cada; acima da Meta 2 valem valor2 cada
-function bonus(total){const m1=cfg.meta1||0,m2=Math.max(cfg.meta2||0,m1);const n1=Math.max(0,Math.min(total,m2)-m1),n2=Math.max(0,total-m2);
-  const b1=n1*(cfg.valor1||0),b2=n2*(cfg.valor2||0);return{m1,m2,n1,n2,b1,b2,tot:b1+b2}}
-const listaMaq=v=>{const q=Math.max(1,Math.floor(+v.quantidade||0));const a=Array.isArray(v.maquinas)?v.maquinas:[];return Array.from({length:q},(_,i)=>({galga:"",serie:"",...(a[i]||{})}))};
+// bônus: batendo a Meta 1 ganha o prêmio da Meta 1; batendo a Meta 2 ganha o prêmio da Meta 2 (no lugar do da Meta 1)
+// e cada máquina acima da Meta 2 soma o valor extra. O total é dividido pelo número de funcionários.
+function bonus(total){const m1=cfg.meta1||0,m2=Math.max(cfg.meta2||0,m1),v1=cfg.valor1||0,v2=cfg.valor2||0,vx=cfg.valorExtra||0,f=Math.max(1,Math.round(cfg.funcionarios||1));
+  let nivel=0,base=0;if(total>=m2){nivel=2;base=v2}else if(total>=m1){nivel=1;base=v1}
+  const n=nivel===2?total-m2:0,extra=n*vx,tot=base+extra;
+  return{m1,m2,v1,v2,vx,f,nivel,base,n,extra,tot,porPessoa:tot/f,falta:nivel===0?m1-total:nivel===1?m2-total:0}}
+const listaMaq=v=>{const q=Math.max(1,Math.floor(+v.quantidade||0));const a=Array.isArray(v.maquinas)?v.maquinas:[];const um=a.length===1?(a[0].galga||""):"";return Array.from({length:q},(_,i)=>({galga:um,serie:"",...(a[i]||{})}))};
 function resumoMaq(v){const g=listaMaq(v).map(x=>(x.galga||"").trim());const n=g.length;
+  if(g[0]&&g.every(x=>x===g[0]))return `${n>1?n+" máq. · ":""}Galga ${g[0]}`;
   return g.some(Boolean)?`${n>1?n+" máq. · ":""}Galga ${g.map(x=>x||"?").join(", ")}`:(n>1?`${n} máquinas · informar galgas`:"Informar galga")}
 function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),6000)}
 
@@ -370,7 +381,7 @@ function viewGeral(){
     ${tile(MESES[mAtual-1],ra.q,metaMes(mAtual),SLUG[mAtual-1])}
     <div class="tile"><span class="lbl">Entregues</span><span class="val">${ent} <small>/ ${total}</small></span><div class="bar"><i style="width:${total?ent/total*100:0}%;background:var(--good)"></i></div><span class="note">${pct(total?ent/total:0)} do total</span></div>
     <a class="tile" href="#todas" data-quick="pag:nao" style="text-decoration:none;color:inherit"><span class="lbl">1ª parcela paga</span><span class="val">${npg} <small>/ ${nv} vendas</small></span><div class="bar"><i style="width:${nv?npg/nv*100:0}%;background:var(--good)"></i></div><span class="note">${nv-npg?`Ver ${nv-npg} não pagas ›`:"✓ Todas pagas"}</span></a>
-    <a class="tile" href="#metas" style="text-decoration:none;color:inherit"><span class="lbl">Bônus de metas</span><span class="val" style="font-size:22px">${brl(bn.tot)}</span><span class="note">${bn.n1+bn.n2} máq. acima da Meta 1 (${bn.m1})</span></a>
+    <a class="tile" href="#metas" style="text-decoration:none;color:inherit"><span class="lbl">Bônus de metas</span><span class="val" style="font-size:22px">${brl(bn.tot)}</span><span class="note">${bn.f>1?`${brl(bn.porPessoa)} por funcionário (${bn.f})`:bn.nivel===2?`Meta 2 batida · +${bn.n} máq.`:bn.nivel===1?`Meta 1 batida · faltam ${bn.falta} p/ Meta 2`:`Faltam ${bn.falta} p/ Meta 1`}</span></a>
   </section>
   <section class="card">
     <h2>Máquinas por mês</h2>
@@ -396,7 +407,7 @@ function cartao(v,mostraMes){const who=v.editedBy||v.createdBy;const extra=[v.pr
   const rm=resumoMaq(v);
   return `<div class="sale ${v.entregue?"ok":"pend"} ${selMode?"selmode":""} ${s?"sel":""}" data-id="${esc(v.id)}" ${selMode?`role="checkbox" aria-checked="${s}" tabindex="0"`:""}>
     <button class="open" type="button" data-open ${selMode?'tabindex="-1"':""}>
-      <span class="cli">${selMode?`<span class="selbox" aria-hidden="true">${s?"✓":""}</span> `:""}${esc(v.cliente)||"<i style='color:var(--muted)'>Sem nome</i>"}${v.telefone?` <span class="tel">📞 ${esc(fmtTel(v.telefone))}</span>`:""}</span>
+      <span class="cli">${selMode?`<span class="selbox" aria-hidden="true">${s?"✓":""}</span> `:""}${esc(v.cliente)||"<i style='color:var(--muted)'>Sem nome</i>"}${v.telefone?` <span class="tel" data-tel>📞 ${esc(fmtTel(v.telefone))}</span>`:` <span class="tel vazio" data-tel>📞 adicionar telefone</span>`}</span>
       <span class="meta">${fmtD(v.data)}${mostraMes?"/"+String(v.ano).slice(2):""}${extra?" · "+esc(extra):""}${who?` · por ${esc(who)}`:""}</span>
     </button>
     <span class="qtd">${v.quantidade}<small>${v.quantidade===1?"máquina":"máquinas"}</small></span>
@@ -473,14 +484,17 @@ function viewMetas(){
   ${(()=>{const total=MESES.reduce((s,_,i)=>s+resumo(i+1).q,0),bn=bonus(total);
     const din=(id,k,label)=>`<div class="field"><label for="${id}">${label}</label><input id="${id}" type="number" inputmode="decimal" step="0.01" min="0" data-cfgv="${k}" value="${cfg[k]||0}"></div>`;
     return `<section class="card bonus">
-    <h2>Bônus por máquina acima da meta</h2>
-    <p class="sub">Cada máquina entre a Meta 1 e a Meta 2 vale o valor da Meta 1. Cada máquina acima da Meta 2 vale o valor da Meta 2.</p>
-    <div class="row2">${inp("b-m1","data-cfg=\"meta1\"",cfg.meta1,"Meta 1 (máquinas)")}${din("b-v1","valor1","R$ por máquina acima da Meta 1")}</div>
-    <div class="row2" style="margin-top:10px">${inp("b-m2","data-cfg=\"meta2\"",cfg.meta2,"Meta 2 (máquinas)")}${din("b-v2","valor2","R$ por máquina acima da Meta 2")}</div>
+    <h2>Bônus de metas</h2>
+    <p class="sub">Batendo a Meta 1, o prêmio é o da Meta 1. Batendo a Meta 2, o prêmio passa a ser o da Meta 2, e cada máquina vendida acima dela soma o valor extra. O total é dividido entre os funcionários. Toque fora do campo para salvar.</p>
+    <div class="row2">${inp("b-m1","data-cfg=\"meta1\"",cfg.meta1,"Meta 1 (máquinas)")}${din("b-v1","valor1","Prêmio da Meta 1 (R$)")}</div>
+    <div class="row2" style="margin-top:10px">${inp("b-m2","data-cfg=\"meta2\"",cfg.meta2,"Meta 2 (máquinas)")}${din("b-v2","valor2","Prêmio da Meta 2 (R$)")}</div>
+    <div class="row2" style="margin-top:10px">${din("b-vx","valorExtra","R$ por máquina acima da Meta 2")}${inp("b-f","data-cfg=\"funcionarios\"",Math.max(1,Math.round(cfg.funcionarios||1)),"Nº de funcionários")}</div>
     <div style="margin-top:12px">
-      <div class="ln"><span>Da Meta 1 (${bn.m1}) até a Meta 2 (${bn.m2}): <b>${bn.n1}</b> × ${brl(cfg.valor1)}</span><span>${brl(bn.b1)}</span></div>
-      <div class="ln"><span>Acima da Meta 2 (${bn.m2}): <b>${bn.n2}</b> × ${brl(cfg.valor2)}</span><span>${brl(bn.b2)}</span></div>
-      <div class="ln"><span>Total do bônus de metas (${total} máquinas vendidas)</span><span>${brl(bn.tot)}</span></div>
+      <div class="ln"><span>${total} máquinas vendidas · ${bn.nivel===2?"Meta 2 batida":bn.nivel===1?`Meta 1 batida · faltam ${bn.falta} para a Meta 2`:`faltam ${bn.falta} para a Meta 1`}</span><span></span></div>
+      <div class="ln"><span>Prêmio ${bn.nivel===2?`da Meta 2 (${bn.m2} máq.)`:bn.nivel===1?`da Meta 1 (${bn.m1} máq.)`:"(meta ainda não batida)"}</span><span>${brl(bn.base)}</span></div>
+      <div class="ln"><span>Acima da Meta 2: <b>${bn.n}</b> máq. × ${brl(bn.vx)}</span><span>${brl(bn.extra)}</span></div>
+      <div class="ln"><span>Total do bônus</span><span>${brl(bn.tot)}</span></div>
+      <div class="ln"><span>Para cada funcionário (${bn.f})</span><span>${brl(bn.porPessoa)}</span></div>
     </div></section>`})()}`;
 }
 
@@ -511,6 +525,7 @@ document.addEventListener("click",e=>{
     if(e.target.closest("[data-ent]")){openEntrega(v,"entrega");return}
     if(e.target.closest("[data-pag]")){openEntrega(v,"pag");return}
     if(e.target.closest("[data-maq]")){openSheet(v,null,true);return}
+    if(e.target.closest("[data-tel]")){openSheet(v);setTimeout(()=>$("#f-tel")?.focus(),80);return}
     if(e.target.closest("[data-open]"))openSheet(v);
     return}
   const pg=e.target.closest("[data-paga]");if(pg){const m=pg.dataset.paga;cfg.comissaoPaga={...cfg.comissaoPaga,[m]:!cfg.comissaoPaga[m]};render();saveCfg();return}
@@ -536,7 +551,9 @@ function openSheet(v,mes,focoMaq){
       <div class="field"><label for="f-data">Data</label><input id="f-data" type="date" value="${esc(v.data)}"></div>
       <div class="field"><label for="f-q">Quantidade</label><div class="stepper"><button type="button" data-step="-1" aria-label="Menos uma">−</button><input id="f-q" type="number" inputmode="numeric" min="0" value="${v.quantidade}"><button type="button" data-step="1" aria-label="Mais uma">+</button></div></div>
     </div>
-    <div class="field"><label>Máquinas · galga e nº de série</label><div class="maqs" id="f-maqs"></div></div>
+    <div class="field"><label for="f-galga">Galga</label><input id="f-galga" maxlength="20" placeholder="ex.: 10/2" autocomplete="off">
+      <label class="chk" id="f-dif-l"><input type="checkbox" id="f-dif"> Máquinas com galgas diferentes</label>
+      <div class="maqs" id="f-maqs"></div></div>
     <div class="switch"><span>Entregue?</span><button class="toggle ${v.entregue?"sim":"nao"}" type="button" id="f-ent">${v.entregue?"Sim, entregue":"Não, a entregar"}</button></div>
     <details ${v.produto||v.preco||v.comissao?"open":""}><summary>Produto, preço e % de bônus</summary>
       <div style="display:grid;gap:10px;margin-top:8px">
@@ -560,12 +577,20 @@ function openSheet(v,mes,focoMaq){
   ov.addEventListener("click",e=>{if(e.target===ov)close()});
   f.querySelector("#f-cancel").onclick=close;
   let maqVals=listaMaq(v);
+  const gs=maqVals.map(x=>(x.galga||"").trim());
+  const difIni=new Set(gs.filter(Boolean)).size>1||maqVals.some(x=>(x.serie||"").trim());
+  f.querySelector("#f-galga").value=gs.find(Boolean)||"";f.querySelector("#f-dif").checked=difIni;
   const lerMaq=()=>{f.querySelectorAll("#f-maqs .maqrow").forEach((r,i)=>{maqVals[i]={...(maqVals[i]||{}),galga:r.querySelector("[data-mf=galga]").value.trim(),serie:r.querySelector("[data-mf=serie]").value.trim()}})};
-  const drawMaq=()=>{lerMaq();const q=Math.max(1,Math.min(50,Math.floor(+f.querySelector("#f-q").value||0)));while(maqVals.length<q)maqVals.push({galga:"",serie:""});
+  const drawMaq=()=>{lerMaq();const q=Math.max(1,Math.min(50,Math.floor(+f.querySelector("#f-q").value||0)));const dif=f.querySelector("#f-dif").checked;
+    f.querySelector("#f-dif-l").style.display=q>1?"":"none";f.querySelector("#f-galga").closest(".field").querySelector("label").textContent=dif&&q>1?"Galga de cada máquina":"Galga";
+    f.querySelector("#f-galga").style.display=dif&&q>1?"none":"";
+    if(!(dif&&q>1)){f.querySelector("#f-maqs").innerHTML="";return}
+    const g0=f.querySelector("#f-galga").value.trim();while(maqVals.length<q)maqVals.push({galga:g0,serie:""});maqVals.forEach(x=>{if(!x.galga)x.galga=g0});
     f.querySelector("#f-maqs").innerHTML=maqVals.slice(0,q).map((x,i)=>`<div class="maqrow"><b>${i+1}</b>
       <div class="field"><label for="g-${i}">Galga</label><input id="g-${i}" data-mf="galga" maxlength="20" value="${esc(x.galga)}" placeholder="ex.: 14"></div>
       <div class="field"><label for="s-${i}">Nº série</label><input id="s-${i}" data-mf="serie" maxlength="40" value="${esc(x.serie)}" placeholder="—"></div></div>`).join("")};
   drawMaq();f.querySelector("#f-q").addEventListener("input",drawMaq);
+  f.querySelector("#f-dif").addEventListener("change",e=>{if(!e.target.checked){lerMaq();const g=maqVals.map(x=>x.galga).find(Boolean);if(g&&!f.querySelector("#f-galga").value.trim())f.querySelector("#f-galga").value=g}drawMaq()});
   f.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{const q=f.querySelector("#f-q");q.value=Math.max(0,(+q.value||0)+Number(b.dataset.step));drawMaq()});
   f.querySelector("#f-cli").addEventListener("change",()=>{const t=f.querySelector("#f-tel");if(t.value.trim())return;const n=norm(f.querySelector("#f-cli").value).trim();if(!n)return;
     const ant=vendas.filter(x=>x.telefone&&norm(x.cliente).trim()===n).sort((a,b)=>(b.data||"").localeCompare(a.data||""))[0];if(ant)t.value=fmtTel(ant.telefone)});
@@ -586,7 +611,8 @@ function openSheet(v,mes,focoMaq){
     if(!data){err.textContent="Escolha a data.";return}
     if(!(q>=0)){err.textContent="Quantidade inválida.";return}
     const pv=f.querySelector("#f-preco").value,cv=f.querySelector("#f-com").value;
-    lerMaq();const nq=Math.max(1,q);const maquinas=maqVals.slice(0,Math.max(nq,(v.maquinas||[]).length>nq?nq:nq)).map(x=>({galga:(x.galga||"").slice(0,20),serie:(x.serie||"").slice(0,40)}));
+    lerMaq();const nq=Math.max(1,q);const dif=f.querySelector("#f-dif").checked&&nq>1;const g1=f.querySelector("#f-galga").value.trim().slice(0,20);
+    const maquinas=dif?maqVals.slice(0,nq).map(x=>({galga:(x.galga||"").slice(0,20),serie:(x.serie||"").slice(0,40)})):(g1?[{galga:g1,serie:""}]:[]);
     const body={data,cliente:cli,telefone:f.querySelector("#f-tel").value.trim(),quantidade:q,entregue:editing.entregue,maquinas,produto:f.querySelector("#f-prod").value.trim(),preco:pv===""?null:Number(pv),comissao:cv===""?null:Number(cv)};
     const sb=f.querySelector("#f-save");sb.disabled=true;err.textContent="";
     try{const id=editing.id||(crypto.randomUUID?crypto.randomUUID():null);
@@ -682,7 +708,7 @@ function openEntrega(v,modo){
 }
 
 // ---- atualização automática: quando sai versão nova no GitHub, o app recarrega sozinho ----
-const VERSAO="202611171848";
+const VERSAO="202611171926";
 async function checaVersao(){
   try{const v=(await fetch("versao.txt?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"")).trim();
     if(v&&v!==VERSAO&&!editing&&!busy){location.replace(location.pathname+"?v="+encodeURIComponent(v)+location.hash)}}catch(e){}
